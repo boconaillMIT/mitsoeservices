@@ -119,3 +119,18 @@ test('vault encrypts at rest, binds each record to its path, and enforces etags'
  assert.equal((await v.put('fy28/eecs/notes',{x:1},'wrong')).conflict,true);assert.equal((await v.put('fy28/eecs/notes',{x:1},null)).conflict,true);
  raw.set('fy28/cee/notes',raw.get('fy28/eecs/notes'));await assert.rejects(()=>v.get('fy28/cee/notes'),'a record copied to another unit cannot be decrypted');
 });
+test('pages read cycle and unit from the original address, as Netlify passes it to rewritten functions',async()=>{
+ const p=createBudgetHqPageHandler(authorize(state(),'oconaill'));
+ const unit=await p({httpMethod:'GET',path:'/soe-hq/budget/fy28/eecs',queryStringParameters:{}});assert.match(unit.body,/data-view="unit"/);assert.match(unit.body,/data-unit="eecs"/);
+ const cyc=await p({httpMethod:'GET',path:'/soe-hq/budget/fy28',queryStringParameters:{}});assert.match(cyc.body,/data-view="cycle"/);
+ const hub=await p({httpMethod:'GET',path:'/soe-hq/budget',queryStringParameters:{}});assert.match(hub.body,/FY28 budget cycle/);
+ assert.equal((await p({httpMethod:'GET',path:'/soe-hq/budget/2028',queryStringParameters:{}})).statusCode,404);
+ assert.match(unit.body,/href="\/soe-hq\/budget\/fy28"[^>]*aria-current="page"|aria-current="page"[^>]*>FY28 budget cycle/,'menu highlights the FY28 cycle');
+ const login=await createBudgetHqPageHandler(authorize(state(),null))({httpMethod:'GET',path:'/soe-hq/budget/fy28/eecs',queryStringParameters:{}});assert.match(login.headers.Location,/returnTo=%2Fsoe-hq%2Fbudget%2Ffy28%2Feecs/);
+});
+test('main menu shows Budget under SoE HQ only to school-wide users',async()=>{
+ const {mainNavigation}=await import('./src/navigation.cjs');
+ const hq=mainNavigation({schoolAccess:true});assert.match(hq,/href="\/soe-hq\/budget"/);assert.match(hq,/href="\/soe-hq\/budget\/fy28"/);
+ assert.ok(hq.indexOf('/soe-hq"')<hq.indexOf('/soe-hq/budget"'),'listed under SoE HQ');
+ const unitUser=mainNavigation({schoolAccess:false,visibility:{academic:true}});assert.ok(!unitUser.includes('/soe-hq'));
+});

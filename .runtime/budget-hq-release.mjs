@@ -3,7 +3,7 @@
 // Guards: tests first; draft must keep every existing function and add only budget-hq and budget-hq-data;
 // other public files unchanged; production checks; automatic rollback on failure.
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {spawnSync} from 'node:child_process';import {createHash,randomBytes} from 'node:crypto';
-const siteId='d5648481-35ee-4894-913c-348262857b35',origin='https://mitsoeservices.netlify.app',changed=['budget-hq.js','budget-hq.css','reserves.js','reserves.css'];
+const siteId='d5648481-35ee-4894-913c-348262857b35',origin='https://mitsoeservices.netlify.app',changed=['budget-hq.js','budget-hq.css','reserves.js','reserves.css','style.css'];
 const cfg=JSON.parse(fs.readFileSync(path.join(process.env.APPDATA,'netlify/Config/config.json'),'utf8')),token=cfg.users[cfg.userId]?.auth?.token;if(!token)throw Error('Netlify login unavailable. Run: npx netlify login');
 const redact=s=>String(s).split(token).join('[redacted]');
 // Retry transient network errors (connection resets, timeouts, 5xx) before giving up.

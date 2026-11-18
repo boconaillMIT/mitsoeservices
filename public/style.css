@@ -12,6 +12,7 @@
 .audience-panel{margin:24px 0 0;padding:20px 24px;background:#fff;border:1px solid #b5cbbb;border-left:5px solid #306249;border-radius:8px}.audience-panel h2{font-size:19px;letter-spacing:0;margin:0}.audience-panel p{max-width:none;margin:8px 0;font-size:13px}.audience-panel ul{padding-left:20px;margin:12px 0;font-size:13px}.audience-panel li{margin:6px 0}.audience-inherited{color:#526a5a}.access-concern{font-weight:700;color:#8b3d24;text-decoration:underline}.audience-panel .small{font-size:11px}
 
 aside .nav-sub{margin-left:16px;padding-top:8px;padding-bottom:8px;font-size:11px;border-left:1px solid #426551;border-radius:0 6px 6px 0}
+aside .nav-sub2{margin-left:32px}
 .file-section-heading{display:flex;justify-content:space-between;gap:16px}.unit-files-table{min-width:650px}.unit-files-table td{vertical-align:top;overflow-wrap:anywhere}.unit-files-table th:last-child,.unit-files-table td:last-child{text-align:left;white-space:normal}.unit-files-table a{font-weight:600;color:#265b41}.unit-file-upload{margin-top:24px;padding-top:22px;border-top:1px solid #dce4da;display:grid;gap:12px;justify-items:start}.unit-file-upload h3{margin:0}.unit-file-upload input[type=file]{max-width:100%;font:inherit}.unit-file-upload button{margin-top:5px}.unit-file-upload p{margin:0}.unit-file-upload label{font-weight:600}.unit-files [role=status]{min-height:1.4em}
 .pilot-page-number{width:95px;font:inherit;padding:8px;margin:0 10px;border:1px solid #c8d5c7;border-radius:5px}
 

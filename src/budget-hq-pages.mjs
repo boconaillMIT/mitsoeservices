@@ -11,8 +11,12 @@ const UNIT=/^(?:[a-z0-9-]{1,40}|x-[a-z0-9-]{1,60})$/;
 
 export function createBudgetHqPageHandler(authorize=access.authorize){return async event=>{
  if(event.httpMethod!=='GET')return {statusCode:405,headers:access.noStore,body:'GET required.'};
- const q=event.queryStringParameters||{},c=q.cycle?parseCycle(q.cycle):null,unit=q.unit?String(q.unit).toLowerCase():null;
- if((q.cycle&&!c)||(unit&&(!c||!UNIT.test(unit))))return {statusCode:404,headers:access.noStore,body:'Page not found.'};
+ // Netlify passes the original address (/soe-hq/budget/fy28/eecs) to rewritten functions, so read it from
+ // the path first and fall back to the query string (used by tests and direct function calls).
+ const q=event.queryStringParameters||{},m=/^\/soe-hq\/budget(?:\/([^/]+))?(?:\/([^/]+))?\/?$/.exec(event.path||'');
+ const rawCycle=m?m[1]:q.cycle,rawUnit=m?m[2]:q.unit;
+ const c=rawCycle?parseCycle(rawCycle):null,unit=rawUnit?String(rawUnit).toLowerCase():null;
+ if((rawCycle&&!c)||(unit&&(!c||!UNIT.test(unit))))return {statusCode:404,headers:access.noStore,body:'Page not found.'};
  const path='/soe-hq/budget'+(c?'/'+c.cycle:'')+(unit?'/'+unit:'');
  const result=await authorize(event,{scope:'school'});
  if(result.statusCode===401)return {statusCode:302,headers:{...access.noStore,Location:'/.netlify/functions/auth-login?returnTo='+encodeURIComponent(path)},body:''};
@@ -32,6 +36,6 @@ export function createBudgetHqPageHandler(authorize=access.authorize){return asy
   body=`<div class="bv bh" id="bh" data-view="unit" data-cycle="${c.cycle}" data-unit="${esc(unit)}"><p id="bh-loading" class="bv-status">Loading ${esc(u?u.label:unit)} for ${fy}…</p><div id="bh-content" hidden></div></div>`;
  }
  const scripts=c?'<link rel="stylesheet" href="/budget-viz.css"><link rel="stylesheet" href="/budget-hq.css"><script type="module" src="/budget-hq.js"></script>':'';
- return {statusCode:200,headers:{...access.noStore,'Content-Type':'text/html; charset=utf-8'},body:`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} · MITSOEServices</title><link rel="stylesheet" href="/style.css">${scripts}</head><body>${navigation.mainNavigation({manage:result.canManage,schoolAdmin:result.admin,schoolAccess:result.schoolAccess,visibility:result.navigation,active:'hq'})}<main><header><span>SCHOOL OF ENGINEERING</span><span class="badge">MIT sign-in verified</span></header><section class="intro"><a href="${back}">← ${esc(backLabel)}</a><h1>${esc(title)}</h1></section><div class="unit-directory">${body}</div></main></body></html>`};
+ return {statusCode:200,headers:{...access.noStore,'Content-Type':'text/html; charset=utf-8'},body:`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} · MITSOEServices</title><link rel="stylesheet" href="/style.css">${scripts}</head><body>${navigation.mainNavigation({manage:result.canManage,schoolAdmin:result.admin,schoolAccess:result.schoolAccess,visibility:result.navigation,active:!c?'budget':'budget-fy28'})}<main><header><span>SCHOOL OF ENGINEERING</span><span class="badge">MIT sign-in verified</span></header><section class="intro"><a href="${back}">← ${esc(backLabel)}</a><h1>${esc(title)}</h1></section><div class="unit-directory">${body}</div></main></body></html>`};
 };}
 export const pageHandler=createBudgetHqPageHandler();
