@@ -1,0 +1,41 @@
+.bv{display:grid;gap:20px}.bv p{max-width:none}
+.bv-intro{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap}.bv-intro p{margin:0 0 4px}
+.bv-status{font-size:12px;color:#7a8a74}.bv-status.error{color:#8a553a}
+.bv-controls{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;background:white;border:1px solid #dce4d5;border-radius:10px;padding:16px 20px;position:sticky;top:0;z-index:2;box-shadow:0 6px 14px -10px rgba(23,61,49,.35)}
+.bv-controls label{display:flex;flex-direction:column;gap:4px;font-size:11px;letter-spacing:.4px;color:#6a7d68}
+.bv-controls select{font:13px 'Segoe UI',Arial,sans-serif;padding:7px 9px;border:1px solid #cbd6c6;border-radius:6px;background:#fbfcfa;color:#233c31;min-width:120px}
+.bv-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.bv-kpi{background:white;border:1px solid #dce4d5;border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:2px}
+.bv-kpi span{font-size:11px;letter-spacing:.4px;color:#6a7d68}.bv-kpi strong{font-size:26px;font-weight:550;letter-spacing:-.5px;color:#173d31}.bv-kpi small{font-size:11px;color:#87947f}
+.bv-panel{background:white;border:1px solid #dce4d5;border-radius:10px;padding:22px 24px;min-width:0}
+.bv-panel h2{font-size:18px;margin:0 0 4px}.bv-panel .bv-status{margin:0 0 12px}
+.bv-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+.bv-scroll{overflow-x:auto}
+.bv-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.bv-table th,.bv-table td{padding:7px 8px;border-bottom:1px solid #edf1e8;text-align:left;vertical-align:top}
+.bv-table thead th{font-size:11px;font-weight:600;color:#6a7d68;border-bottom:1px solid #dce4d5;white-space:nowrap}
+.bv-table tfoot th,.bv-table tfoot td{font-weight:600;border-top:1px solid #dce4d5;border-bottom:0}
+.bv-table .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bv-heat td{border-bottom:1px solid #fff;border-right:1px solid #fff}
+.bv-heat tr.is-focus th,.bv-heat tr.is-focus td{box-shadow:inset 0 2px 0 #b5651d,inset 0 -2px 0 #b5651d}
+.bv-link{all:unset;cursor:pointer;color:#1f5a41;font-weight:600}.bv-link:hover{text-decoration:underline}
+.bv-legend{display:flex;flex-wrap:wrap;gap:14px;font-size:11.5px;color:#5d6f59;margin:0 0 8px}
+.bv-legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.bv-legend i.line{height:0;border-top:2px dashed #b5651d;border-radius:0;vertical-align:3px}
+#bv-history svg{width:100%;height:auto;display:block}
+#bv-history .grid{stroke:#e8ece3}#bv-history .ax{font:11px 'Segoe UI',Arial,sans-serif;fill:#7a8a74}
+#bv-history .med{fill:none;stroke:#b5651d;stroke-width:2;stroke-dasharray:5 4}#bv-history .med-dot{fill:#b5651d}
+.bv-row{display:grid;grid-template-columns:7.5rem minmax(0,1fr) 6.5rem;gap:10px;align-items:center;font-size:12.5px;padding:3px 0}
+.bv-row.is-focus .bv-name{font-weight:700;color:#b5651d}
+.bv-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bv-stack{display:flex;height:14px;border-radius:3px;overflow:hidden;background:#edf1e8}.bv-stack div{height:100%}
+.bv-row .n{text-align:right;color:#5d6f59;font-variant-numeric:tabular-nums}
+.bv-cats td{vertical-align:middle}.bv-cats small{font-size:11px;color:#7a8a74}
+.bv-track{display:inline-block;width:calc(100% - 3rem);height:10px;background:#edf1e8;border-radius:3px;overflow:hidden;vertical-align:middle;margin-right:6px}
+.bv-fill{height:100%;background:#1f5a41}.bv-fill.peer{background:#9fb5a6}
+.bv-req-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.bv-req-head select{font:13px 'Segoe UI',Arial,sans-serif;padding:6px 8px;border:1px solid #cbd6c6;border-radius:6px}
+.bv-empty{color:#87947f;font-size:12.5px}
+.bv sup{font-size:9px;color:#8a553a;margin-left:2px}
+@media(max-width:1000px){.bv-grid{grid-template-columns:1fr}.bv-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.bv-kpis{grid-template-columns:1fr}.bv-controls{position:static}.bv-row{grid-template-columns:5.5rem minmax(0,1fr) 5.5rem}}

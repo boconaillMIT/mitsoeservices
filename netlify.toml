@@ -250,6 +250,12 @@
   force = true
 
 [[redirects]]
+  from = "/soe-hq/budget-explorer-legacy"
+  to = "/.netlify/functions/service-hub?page=/soe-hq/budget-explorer-legacy"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/soe-hq/budget-submissions"
   to = "/.netlify/functions/service-hub?page=/soe-hq/budget-submissions"
   status = 200

@@ -8,6 +8,7 @@ node_modules/
 # One-off release scripts, receipts, logs and data snapshots (may contain financial data)
 .runtime/*
 !.runtime/budget-visuals-release.mjs
+!.runtime/budget-viz-release.mjs
 # Large binary/report artifacts
 *.zip
 *.jpg
