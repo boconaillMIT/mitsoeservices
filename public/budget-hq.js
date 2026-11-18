@@ -38,7 +38,7 @@ function renderCycle(){
  <div class="bv-scroll"><table class="bv-table bh-units"><thead><tr><th>Unit</th><th style="width:28%"></th><th class="n">Lines</th><th class="n">Requested</th><th class="n">Supported</th><th class="n">SoE</th><th class="n">Provost</th><th class="n">Declined</th><th class="n">Pending</th></tr></thead><tbody>
  ${list.map(u=>`<tr class="${u.lines?'':'bh-none'}"><td><a href="/soe-hq/budget/${cycle}/${encodeURIComponent(u.key)}">${esc(u.label)}</a>${u.has_wallet?'':' <span class="bh-tag">not mapped</span>'}</td><td>${u.lines?splitBar(u.requested,u.soe,u.provost,max):'<span class="bv-status">No requests</span>'}</td><td class="n">${u.lines}</td><td class="n">${short(u.requested)}</td><td class="n">${short(u.supported)}</td><td class="n">${short(u.soe)}</td><td class="n">${short(u.provost)}</td><td class="n">${short(u.declined_requested)}</td><td class="n">${u.pending?'<strong>'+u.pending+'</strong>':'0'}</td></tr>`).join('')}
  <tr class="bh-total"><td>Total</td><td></td><td class="n">${t.lines}</td><td class="n">${short(t.requested)}</td><td class="n">${short(t.supported)}</td><td class="n">${short(t.soe)}</td><td class="n">${short(t.provost)}</td><td class="n">${short(t.declined_requested)}</td><td class="n">${t.pending}</td></tr></tbody></table></div>
- <p class="bv-status">Decisions are HQ working drafts. They are not written to QuickBase’s approved fields. ${data.can_edit?'':'You have read-only access.'}</p></section>`;
+ <p class="bv-status">Decisions are saved in QuickBase’s HQ Budget Decisions table, separate from the budget table’s approved fields. ${data.can_edit?'':'You have read-only access.'}</p></section>`;
 }
 
 // ---------- unit page ----------
@@ -55,6 +55,7 @@ function renderUnit(){
   +(r?tile('Months of reserve',mo(r.unit.point?.months),'after open commitments, '+(ry?fy(ry.year):'')):'')
   +(r?tile('GIB used',pct(ry?.gib_use_rate),ry?fy(ry.year):''):'')
   +(r?tile('Open commitments',short(r.unit.open_commitments),(r.unit.open_commitment_count??0)+' commitments'):'')}</div>
+ ${data.storage_ready?'':'<p class="bv-status error bh-noprint">HQ decisions, the briefing and the documents link are read-only until the QuickBase tables are connected.</p>'}
  <section class="bv-panel bh-brief"><div class="bh-head"><h2>Dean’s briefing</h2><span class="bv-status bh-noprint">${data.can_edit?'Lines starting with “- ” become bullet points. Each section saves on its own.':'Prepared by SoE HQ.'}</span></div><div id="bh-notes"></div></section>
  <section class="bv-panel"><h2>${fy(data.year)} requests and HQ decisions</h2>${data.can_edit?'<p class="bv-status bh-noprint">Set each line to decline or support. Support level is the share of the request supported. SoE share is the part the School funds, and the rest goes to the Provost as cost share. Save each line.</p>':'<p class="bv-status">Read-only.</p>'}
   <div class="bv-scroll" id="bh-lines"></div></section>
@@ -104,11 +105,11 @@ async function save(tr){
  if(v.decision==='support'&&!(v.support_pct>0&&v.support_pct<=100)){msg.textContent='Enter a support level between 0.1 and 100%.';msg.classList.add('error');return;}
  if(v.decision==='support'&&!(v.soe_pct>=0&&v.soe_pct<=100)){msg.textContent='Enter an SoE share between 0 and 100%.';msg.classList.add('error');return;}
  msg.classList.remove('error');btn.disabled=true;msg.textContent='Saving…';
- try{const r=await fetch(API,{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({cycle,unit:unitKey,record_id:tr.dataset.id,...v,etag:data.etag})});
+ try{const r=await fetch(API,{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({cycle,unit:unitKey,record_id:tr.dataset.id,...v,version:data.lines.find(x=>x.record_id===tr.dataset.id)?.version||null})});
   const j=await r.json().catch(()=>({}));
   if(r.status===409){msg.textContent=j.error+' ';msg.classList.add('error');const a=document.createElement('button');a.type='button';a.textContent='Reload';a.onclick=()=>location.reload();msg.append(a);return;}
   if(!r.ok)throw Error(j.error||'Not saved.');
-  data.etag=j.etag;const i=data.lines.findIndex(x=>x.record_id===j.line.record_id);data.lines[i]=j.line;
+  const i=data.lines.findIndex(x=>x.record_id===j.line.record_id);data.lines[i]=j.line;logLocal('decision',j.line.description,label(j.line));
   data.totals=recalc(data.lines);renderUnit();
  }catch(e){msg.textContent=e.message;msg.classList.add('error');}finally{btn.disabled=false;}
 }
@@ -145,9 +146,9 @@ function wallet(){
  ${ys.map(y=>`<tr><td>${fy(y.year)}</td><td><div class="rv-bar"><i style="width:${y.gib_carry/max*100}%;background:#2f6f5a"></i><i style="width:${y.general/max*100}%;background:#86b49f"></i></div></td><td class="n">${short(y.reserve)}</td><td class="n">${short(y.gib_base)}</td><td class="n">${short(y.payout_general)}</td><td class="n">${mo(y.months)}</td><td class="n">${pct(y.gib_use_rate)}</td><td class="n">${short(y.restricted)}</td><td class="n">${short(y.faculty)}</td></tr>`).join('')}</tbody></table>
  <p class="bv-status">From the unit’s verified wallet statement${r.unit.statement_published_at?' (published '+new Date(r.unit.statement_published_at).toLocaleDateString()+')':''}. Months shown here are before commitments.</p>`;
 }
+function logLocal(kind,item,change){(data.log||=[]).unshift({at:new Date().toISOString(),by:'you',kind,item,change});}
 function audit(){
- const a=data.audit;$('#bh-audit').innerHTML=a.length?`<ul class="bh-audit">${a.map(e=>{const line=data.lines.find(l=>l.record_id===e.record_id);const d=x=>!x?'pending':x.decision==='support'?`support ${x.support_pct}% (SoE ${x.soe_pct}%)`:x.decision;
-  return `<li><span class="bv-status">${new Date(e.at).toLocaleString()} · ${esc(e.by)}</span> ${esc((line?.description||'Line '+e.record_id).slice(0,80))}: ${d(e.from)} → ${d(e.to)}${e.note_changed?' · note updated':''}</li>`;}).join('')}</ul>`:'<p class="bv-status">No decisions recorded yet.</p>';
+ const a=data.log||[];$('#bh-audit').innerHTML=a.length?`<ul class="bh-audit">${a.map(e=>`<li><span class="bv-status">${e.at?new Date(e.at).toLocaleString():''} · ${esc(e.by)}</span> ${esc(e.kind)} · ${esc(String(e.item||'').slice(0,80))}: ${esc(e.change)}</li>`).join('')}</ul>`:'<p class="bv-status">No changes recorded yet.</p>';
 }
 
 // ---------- Dean's briefing ----------
@@ -163,31 +164,22 @@ function notes(){
 async function saveNote(k){
  const ta=document.querySelector(`[data-note="${k}"]`),msg=document.querySelector(`[data-note-msg="${k}"]`),btn=document.querySelector(`[data-note-save="${k}"]`);
  btn.disabled=true;msg.classList.remove('error');msg.textContent='Saving…';
- try{const j=await send('PUT',{action:'notes',section:k,text:ta.value,etag:data.notes_etag});data.notes_etag=j.etag;data.notes=j.notes;ta.classList.remove('bh-dirty');
-  const sec=j.notes.sections[k];msg.textContent='Saved by '+sec.updated_by+' · '+new Date(sec.updated_at).toLocaleString();
+ try{const j=await send('PUT',{action:'notes',section:k,text:ta.value,version:data.notes.sections[k].version});data.notes.sections[k]=j.section;ta.classList.remove('bh-dirty');logLocal('briefing',data.note_sections[k],'Edited ('+j.section.text.length+' characters)');audit();
+  const sec=j.section;msg.textContent='Saved by '+sec.updated_by+' · '+new Date(sec.updated_at).toLocaleString();
   document.querySelector(`[data-section="${k}"] .bh-printonly`).innerHTML=rich(sec.text);}
  catch(e){msg.textContent=e.message;msg.classList.add('error');}finally{btn.disabled=false;}
 }
-// ---------- documents ----------
-const size=b=>b>=1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB';
+// ---------- documents folder (MIT Google Shared Drive) ----------
 function files(){
- const f=data.files;
- $('#bh-files').innerHTML=(f.length?`<table class="bv-table"><thead><tr><th>Document</th><th class="n">Size</th><th>Uploaded</th>${data.can_edit?'<th></th>':''}</tr></thead><tbody>${f.map(x=>`<tr><td><a href="${API}?cycle=${cycle}&unit=${encodeURIComponent(unitKey)}&file=${encodeURIComponent(x.id)}">${esc(x.label||x.filename)}</a>${x.label?`<div class="bv-status">${esc(x.filename)}</div>`:''}</td><td class="n">${size(x.size)}</td><td>${esc(x.uploaded_by)} · ${new Date(x.uploaded_at).toLocaleDateString()}</td>${data.can_edit?`<td class="n"><button type="button" data-del="${esc(x.id)}">Delete</button></td>`:''}</tr>`).join('')}</tbody></table>`:'<p class="bv-status">No documents yet.</p>')
- +(data.can_edit?`<div class="bh-upload"><input type="file" id="bh-file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.rtf,.png,.jpg,.jpeg"><input type="text" id="bh-file-label" maxlength="120" placeholder="Label (optional), e.g. Final submission"><button type="button" id="bh-upload">Upload</button><span class="bv-status" id="bh-file-msg">PDF, Office, CSV, text or images, up to 4 MB. Stored encrypted.</span></div>`:'');
- const up=$('#bh-upload');if(up)up.addEventListener('click',upload);
+ const f=data.folder||{url:''};
+ $('#bh-files').innerHTML=(f.url?`<p><a class="desktop" href="${esc(f.url)}" target="_blank" rel="noopener noreferrer">Open this unit’s documents folder in Google Drive →</a></p><p class="bv-status">Documents are kept in the MIT Shared Drive. Google Drive sharing controls who can open them.</p>`:'<p class="bv-status">No documents folder linked yet.</p>')
+ +(data.can_edit?`<div class="bh-upload"><input type="url" id="bh-folder" maxlength="300" placeholder="https://drive.google.com/drive/folders/…" value="${esc(f.url)}" aria-label="Google Drive folder link"><button type="button" id="bh-folder-save">Save link</button><span class="bv-status" id="bh-folder-msg"></span></div>`:'');
+ const b=$('#bh-folder-save');if(b)b.addEventListener('click',saveFolder);
 }
-async function upload(){
- const input=$('#bh-file'),msg=$('#bh-file-msg'),file=input.files[0];msg.classList.remove('error');
- if(!file){msg.textContent='Choose a file first.';msg.classList.add('error');return;}
- if(file.size>4*1024*1024){msg.textContent='Files must be 4 MB or smaller.';msg.classList.add('error');return;}
- msg.textContent='Uploading…';$('#bh-upload').disabled=true;
- try{const b64=await new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]||'');r.onerror=()=>no(Error('Could not read the file.'));r.readAsDataURL(file);});
-  const j=await send('POST',{action:'upload',filename:file.name,label:$('#bh-file-label').value,data:b64,etag:data.files_etag});data.files=j.files;data.files_etag=j.etag;files();}
- catch(e){msg.textContent=e.message;msg.classList.add('error');$('#bh-upload').disabled=false;}
-}
-async function removeFile(id){
- const f=data.files.find(x=>x.id===id);if(!f||!confirm('Delete '+(f.label||f.filename)+'?'))return;
- try{const j=await send('DELETE',{action:'delete-file',id,etag:data.files_etag});data.files=j.files;data.files_etag=j.etag;files();}catch(e){alert(e.message);}
+async function saveFolder(){
+ const msg=$('#bh-folder-msg'),url=$('#bh-folder').value.trim();msg.classList.remove('error');msg.textContent='Saving…';
+ try{const j=await send('PUT',{action:'folder',url,version:data.folder?.version||null});data.folder=j.link;files();logLocal('documents link','Documents folder',j.link.url?'Folder link set':'Folder link removed');audit();}
+ catch(e){msg.textContent=e.message;msg.classList.add('error');}
 }
 async function send(method,payload){
  const r=await fetch(API,{method,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({cycle,unit:unitKey,...payload})});
@@ -196,7 +188,7 @@ async function send(method,payload){
 
 document.addEventListener('change',e=>{const tr=e.target.closest('tr[data-id]');if(tr&&e.target.dataset.f)preview(tr);});
 document.addEventListener('input',e=>{const tr=e.target.closest('tr[data-id]');if(tr&&['custom','soe','note'].includes(e.target.dataset.f))preview(tr);});
-document.addEventListener('click',e=>{const b=e.target.closest('[data-save]');if(b){save(b.closest('tr'));return;}const n=e.target.closest('[data-note-save]');if(n){saveNote(n.dataset.noteSave);return;}const d=e.target.closest('[data-del]');if(d)removeFile(d.dataset.del);});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-save]');if(b){save(b.closest('tr'));return;}const n=e.target.closest('[data-note-save]');if(n){saveNote(n.dataset.noteSave);return;}});
 document.addEventListener('input',e=>{if(e.target.dataset?.note){e.target.classList.add('bh-dirty');const m=document.querySelector(`[data-note-msg="${e.target.dataset.note}"]`);if(m)m.textContent='Unsaved changes';}});
 window.addEventListener('beforeunload',e=>{if(document.querySelector('.bh-dirty')){e.preventDefault();e.returnValue='';}});
 load();
