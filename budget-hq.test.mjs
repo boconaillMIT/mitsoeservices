@@ -93,22 +93,22 @@ test('cycle roll-up lists every academic unit plus unmapped request groups; CSV 
 // ---------- QuickBase store against a fake QuickBase ----------
 function fakeQB(){
  const tables={dec:'tdecisions',bri:'tbriefing',uni:'tunits',log:'tchangelog'},cfg={decisions:tables.dec,briefing:tables.bri,units:tables.uni,log:tables.log};
- const fids={},rows={};let rid=100,clock=1795000000000;const kinds={[tables.dec]:'decisions',[tables.bri]:'briefing',[tables.uni]:'units',[tables.log]:'log'};
+ const fids={},rows={};let rid=100,clock=1795000000123;const kinds={[tables.dec]:'decisions',[tables.bri]:'briefing',[tables.uni]:'units',[tables.log]:'log'};
  for(const [t,k]of Object.entries(kinds)){fids[t]=Object.fromEntries(FIELDS[k].map((l,i)=>[l,10+i]));rows[t]=[];}
  const calls=[];
  const transport={
   async rest(path,{body}={}){calls.push(path);if(path.startsWith('fields?tableId=')){const t=decodeURIComponent(path.split('=')[1]);return Object.entries(fids[t]).map(([label,id])=>({label,id}));}
    const t=body.from,conds=[...body.where.matchAll(/\{(\d+)\.EX\.'([^']*)'\}/g)];
-   const data=rows[t].filter(r=>conds.every(([,id,v])=>String(r[id])===v)).map(r=>({'2':{value:new Date(r[2]).toISOString()},'3':{value:r[3]},...Object.fromEntries(Object.values(fids[t]).map(id=>[String(id),{value:r[id]??null}]))}));
+   const data=rows[t].filter(r=>conds.every(([,id,v])=>String(r[id])===v)).map(r=>({'2':{value:new Date(r[2]).toISOString().replace(/\.\d{3}Z$/,'Z')},'3':{value:r[3]},...Object.fromEntries(Object.values(fids[t]).map(id=>[String(id),{value:r[id]??null}]))}));
    return {data,metadata:{totalRecords:data.length}};},
   async native(t,action,inner){calls.push(action);const f=Object.fromEntries([...inner.matchAll(/<field fid="(\d+)">([\s\S]*?)<\/field>/g)].map(m=>[m[1],m[2].replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&')]));
    const num=(k,v)=>['Request Record ID','Support %','SoE %'].some(l=>fids[t][l]==k)&&v!==''?Number(v):v;
-   if(action==='API_AddRecord'){const keyId=fids[t].Key;if(keyId&&rows[t].some(r=>r[keyId]===f[keyId]))throw Object.assign(Error('dup'),{qbCode:'21'});const r={3:++rid,2:++clock,u:1};for(const [k,v]of Object.entries(f))r[k]=num(k,v);rows[t].push(r);return '<errcode>0</errcode>';}
+   if(action==='API_AddRecord'){const keyId=fids[t].Key;if(keyId&&rows[t].some(r=>r[keyId]===f[keyId]))throw Object.assign(Error('dup'),{qbCode:'21'});clock+=1500;const r={3:++rid,2:clock,u:1};for(const [k,v]of Object.entries(f))r[k]=num(k,v);rows[t].push(r);return '<errcode>0</errcode>';}
    const id=Number(/<rid>(\d+)<\/rid>/.exec(inner)[1]),r=rows[t].find(x=>x[3]===id);
    if(action==='API_GetRecordInfo')return `<errcode>0</errcode><update_id>${r.u}</update_id><field><fid>2</fid><name>Date Modified</name><value>${r[2]}</value></field>`;
-   if(action==='API_EditRecord'){if(String(r.u)!==/<update_id>(\d+)<\/update_id>/.exec(inner)[1])throw Object.assign(Error('conflict'),{qbCode:'31'});for(const [k,v]of Object.entries(f))r[k]=num(k,v);r.u++;r[2]=++clock;return '<errcode>0</errcode>';}
+   if(action==='API_EditRecord'){if(String(r.u)!==/<update_id>(\d+)<\/update_id>/.exec(inner)[1])throw Object.assign(Error('conflict'),{qbCode:'31'});for(const [k,v]of Object.entries(f))r[k]=num(k,v);r.u++;clock+=1500;r[2]=clock;return '<errcode>0</errcode>';}
   },
-  touch(t,key){const r=rows[t].find(x=>x[fids[t].Key]===key);r.u++;r[2]=++clock;}};
+  touch(t,key){const r=rows[t].find(x=>x[fids[t].Key]===key);r.u++;clock+=1500;r[2]=clock;}};
  return {transport,cfg,rows,fids,tables,calls};
 }
 test('QuickBase store: adds, edits with version + update_id checks, blocks duplicates, writes the change log',async()=>{
@@ -140,4 +140,15 @@ test('pages read cycle and unit from the original address, as Netlify passes it 
  assert.match((await p({httpMethod:'GET',path:'/soe-hq/budget/fy28',queryStringParameters:{}})).body,/data-view="cycle"/);
  assert.equal((await p({httpMethod:'GET',path:'/soe-hq/budget/2028',queryStringParameters:{}})).statusCode,404);
  assert.equal((await createBudgetHqPageHandler(authorize(state(),'unit_admin'))({httpMethod:'GET',path:'/soe-hq/budget',queryStringParameters:{}})).statusCode,403);
+});
+
+test('QuickBase store: repeated edits to the same section and line succeed (JSON API reports seconds, XML API milliseconds)',async()=>{
+ const q=fakeQB(),store=createBudgetHqStore({transport:q.transport,config:q.cfg});
+ let s=await store.saveBriefing('fy28','eecs','talking','first',null,'oconaill');
+ for(const text of ['second','','third with more points']){const n=await store.saveBriefing('fy28','eecs','talking',text,s.section.version,'oconaill');assert.ok(!n.conflict,'edit "'+text+'" refused');s=n;}
+ assert.equal((await store.unit('fy28','eecs')).sections.talking.text,'third with more points');
+ let d=await store.saveDecision('fy28','eecs','7',{decision:'decline',note:''},null,'oconaill','x');
+ d=await store.saveDecision('fy28','eecs','7',{decision:'support',support_pct:50,soe_pct:50,note:''},d.decision.version,'oconaill','x');assert.ok(!d.conflict);
+ let l=await store.saveLink('fy28','eecs','https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOp',null,'o');l=await store.saveLink('fy28','eecs','',l.link.version,'o');assert.ok(!l.conflict);
+ const stale=await store.saveBriefing('fy28','eecs','talking','stale',null,'x');assert.deepEqual(stale,{conflict:true});
 });

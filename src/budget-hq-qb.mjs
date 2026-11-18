@@ -1,7 +1,7 @@
 // QuickBase storage for SoE HQ budget work: decisions, Dean's briefing, documents-folder links
 // and an append-only change log. Everything stays in MIT's QuickBase; the site keeps nothing.
 // Tables are named in budget-hq-tables.json; fields are found by name (see FIELDS below).
-// Concurrency: each row's version is its Date Modified (fid 2). A save re-reads the row with
+// Concurrency: each row's version is its Date Modified (fid 2), to the second. A save re-reads the row with
 // API_GetRecordInfo, refuses if the version moved, and edits with that update_id, so a change
 // made in between is never overwritten. New rows carry a unique Key (cycle|unit|item), so two
 // people creating the same row at once cannot both succeed.
@@ -21,6 +21,9 @@ const xml=s=>String(s).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'
 const SAFE=/^[A-Za-z0-9|_.-]{1,80}$/;// cycle/unit/key values used in queries are validated upstream; enforce again here
 const KIND={decisions:'decision',briefing:'briefing',units:'documents link'};
 
+// The JSON API reports Date Modified to the second, the XML API to the millisecond: compare at
+// whole seconds. QuickBase's update_id still guards the instant between the re-check and the edit.
+export function secondsVersion(ms){return Number.isFinite(ms)&&ms>0?String(Math.floor(ms/1000)):'';}
 export function configured(t=tables){return ['decisions','briefing','units','log'].every(k=>/^[a-z0-9]{6,20}$/.test(t[k]||''));}
 
 export function createQbTransport({token=()=>process.env.NIMBUS_QB_TOKEN,fetcher=fetch}={}){
@@ -46,7 +49,7 @@ export function createBudgetHqStore({transport=createQbTransport(),config=tables
   for(let page=0;page<40;page++){const r=await transport.rest('records/query',{body:{from:config[kind],select,where:where(f),options:{top:1000,skip:rows.length}}});
    total=r.metadata?.totalRecords;rows.push(...(r.data||[]));if(!Number.isInteger(total)||rows.length>=total||!r.data?.length)break;}
   if(Number.isInteger(total)&&rows.length<total)throw Error('QuickBase results were incomplete.');
-  return rows.map(r=>{const o={rid:String(r['3']?.value),version:String(Date.parse(r['2']?.value)||'')};for(const [label,id]of Object.entries(f))o[label]=r[String(id)]?.value??null;return o;});
+  return rows.map(r=>{const o={rid:String(r['3']?.value),version:secondsVersion(Date.parse(r['2']?.value))};for(const [label,id]of Object.entries(f))o[label]=r[String(id)]?.value??null;return o;});
  }
  const eq=(id,v)=>{if(!SAFE.test(v))throw Error('Invalid value.');return `{${id}.EX.'${v}'}`;};
  const CY=c=>c.toUpperCase();
@@ -67,7 +70,7 @@ export function createBudgetHqStore({transport=createQbTransport(),config=tables
    if(String(expectedVersion||'')!==existing.version)return {conflict:true};
    const info=await transport.native(config[kind],'API_GetRecordInfo',`<rid>${existing.rid}</rid>`);
    const updateId=/<update_id>\s*([^<\s]+)\s*<\/update_id>/i.exec(info)?.[1],modified=/<field>\s*<fid>2<\/fid>[\s\S]*?<value>\s*(\d+)\s*<\/value>/i.exec(info)?.[1];
-   if(!updateId||String(modified)!==existing.version)return {conflict:true};
+   if(!updateId||secondsVersion(Number(modified))!==existing.version)return {conflict:true};
    try{await transport.native(config[kind],'API_EditRecord',`<rid>${existing.rid}</rid><update_id>${xml(updateId)}</update_id>`+fields);}
    catch(e){if(e.qbCode)return {conflict:true};throw e;}
   }
