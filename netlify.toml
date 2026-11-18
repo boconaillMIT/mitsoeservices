@@ -293,6 +293,24 @@
   force = true
 
 [[redirects]]
+  from = "/soe-hq/budget/:cycle/:unit"
+  to = "/.netlify/functions/budget-hq?cycle=:cycle&unit=:unit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/soe-hq/budget/:cycle"
+  to = "/.netlify/functions/budget-hq?cycle=:cycle"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/soe-hq/budget"
+  to = "/.netlify/functions/budget-hq"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/soe-hq/reserves"
   to = "/.netlify/functions/service-hub?page=/soe-hq/reserves"
   status = 200

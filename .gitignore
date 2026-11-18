@@ -11,6 +11,7 @@ node_modules/
 !.runtime/budget-viz-release.mjs
 !.runtime/mcp-connector-release.mjs
 !.runtime/reserves-release.mjs
+!.runtime/budget-hq-release.mjs
 # Large binary/report artifacts
 *.zip
 *.jpg
