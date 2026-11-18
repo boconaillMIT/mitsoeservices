@@ -15,6 +15,55 @@
     Referrer-Policy = "no-referrer"
     Content-Security-Policy = "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'"
 
+# Claude connector (remote MCP, read-only)
+[[redirects]]
+  from = "/mcp"
+  to = "/.netlify/functions/mcp"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/.well-known/oauth-protected-resource"
+  to = "/.netlify/functions/mcp-resource-metadata"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/.well-known/oauth-protected-resource/mcp"
+  to = "/.netlify/functions/mcp-resource-metadata"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/.well-known/oauth-authorization-server"
+  to = "/.netlify/functions/mcp-auth-metadata"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/.well-known/oauth-authorization-server/mcp"
+  to = "/.netlify/functions/mcp-auth-metadata"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mcp-oauth/authorize"
+  to = "/.netlify/functions/mcp-authorize"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mcp-oauth/token"
+  to = "/.netlify/functions/mcp-token"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mcp-oauth/register"
+  to = "/.netlify/functions/mcp-register"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/my-unit"
   to = "/.netlify/functions/my-unit"

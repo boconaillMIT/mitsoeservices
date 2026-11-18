@@ -4,10 +4,7 @@ const TABLE='br8dehttq';
 const LABELS=['Budget Fiscal Year','Department','Original Request Description','Revised Request Description','Request Nimbus category','Request Amount','Recurring (base) - DLC','Non-recurring (non-base) - DLC','Provost Recurring (base) - Approved','Provost Non-recurring (non-base) - Approved','SoE Non-recurring (non-base) - SoE_Approved','Declined','Declined Final','Historical allocation - funder unresolved','Status of Initial Request'];
 const safeValue=value=>{if(value===null||value===undefined)return null;if(typeof value==='number'||typeof value==='boolean')return value;return String(value).slice(0,2000);};
 async function getFields(){const response=await fetch(`https://api.quickbase.com/v1/fields?tableId=${TABLE}`,{headers:{'QB-Realm-Hostname':'mit.quickbase.com',Authorization:`QB-USER-TOKEN ${process.env.NIMBUS_QB_TOKEN}`},signal:AbortSignal.timeout(15000)});if(!response.ok)throw Error('Quickbase field metadata unavailable.');const data=await response.json();const result=Array.isArray(data)?data:data.fields;if(!Array.isArray(result)||!result.length)throw Error('Quickbase field metadata missing.');return result;}
-export function createBudgetHandler({authorize=access.authorize,fields=getFields,query=qbRequest}={}){return async event=>{
- const auth=await authorize(event,{scope:'school',minimum:'admin'});if(auth.statusCode)return auth;
- if(event.httpMethod!=='GET')return {statusCode:405,headers:access.noStore,body:'GET required.'};
- try{
+export async function loadBudgetRecords({fields=getFields,query=qbRequest}={}){
   const metadata=await fields(),selected=LABELS.map(label=>metadata.find(field=>field.label===label));
   if(selected.some(field=>!field||!Number.isInteger(field.id)))throw Error('A required budget field is unavailable.');
   const ids=[3,...selected.map(field=>field.id)],raw=[];let expected;
@@ -19,6 +16,15 @@ export function createBudgetHandler({authorize=access.authorize,fields=getFields
    if(!result.data.length||raw.length>expected)throw Error('Incomplete budget records.');
   }
   if(raw.length!==expected||new Set(raw.map(row=>String(row['3']?.value))).size!==raw.length)throw Error('Incomplete or duplicate budget records.');
+  return {selected,raw,total:expected};
+}
+export const BUDGET_SOURCE_URL=`https://mit.quickbase.com/nav/app/br8deedpt/table/${TABLE}/action/td`;
+export {safeValue};
+export function createBudgetHandler({authorize=access.authorize,fields=getFields,query=qbRequest}={}){return async event=>{
+ const auth=await authorize(event,{scope:'school',minimum:'admin'});if(auth.statusCode)return auth;
+ if(event.httpMethod!=='GET')return {statusCode:405,headers:access.noStore,body:'GET required.'};
+ try{
+  const {selected,raw,total:expected}=await loadBudgetRecords({fields,query});
   const rows=raw.map(row=>Object.fromEntries(selected.map(field=>[field.label,safeValue(row[String(field.id)]?.value)])));
   return {statusCode:200,headers:{...access.noStore,'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify({fields:selected.map(field=>({id:field.id,label:field.label})),rows,total:expected,sourceUrl:`https://mit.quickbase.com/nav/app/br8deedpt/table/${TABLE}/action/td`})};
  }catch(error){console.error('Budget Explorer:',error.message);return {statusCode:502,headers:{...access.noStore,'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify({error:'Budget data is temporarily unavailable.'})};}
