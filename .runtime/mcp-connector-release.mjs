@@ -10,7 +10,10 @@ import fs from 'node:fs';import path from 'node:path';import assert from 'node:a
 const siteId='d5648481-35ee-4894-913c-348262857b35',origin='https://mitsoeservices.netlify.app',changed=['budget-viz.js','budget-viz.css'];
 const cfg=JSON.parse(fs.readFileSync(path.join(process.env.APPDATA,'netlify/Config/config.json'),'utf8')),token=cfg.users[cfg.userId]?.auth?.token;if(!token)throw Error('Netlify login unavailable. Run: npx netlify login');
 const redact=s=>String(s).split(token).join('[redacted]');
-async function api(p,body){const r=await fetch('https://api.netlify.com/api/v1/'+p,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(30000)});if(!r.ok)throw Error('Netlify request failed: '+r.status+' '+p.split('?')[0]);return r.json();}
+// Retry transient network errors (connection resets, timeouts, 5xx) before giving up.
+async function retry(label,fn){let last;for(let i=0;i<5;i++){try{return await fn();}catch(e){last=e;if(e.permanent)throw e;console.log('  (network retry '+(i+1)+'/4 for '+label+': '+(e.cause?.code||e.message)+')');await new Promise(r=>setTimeout(r,3000*(i+1)));}}throw last;}
+async function api(p,body){return retry(p.split('?')[0],()=>apiOnce(p,body));}
+async function apiOnce(p,body){const r=await fetch('https://api.netlify.com/api/v1/'+p,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(30000)});if(!r.ok)throw Object.assign(Error('Netlify request failed: '+r.status+' '+p.split('?')[0]),{permanent:r.status<500&&r.status!==429});return r.json();}
 const sha=b=>createHash('sha1').update(b).digest('hex'),step=m=>console.log('• '+m);
 
 // Local checks first
@@ -27,7 +30,7 @@ let copied=0;
 for(const a of assets){if(a.path==='/netlify.toml')continue;const rel=a.path.replace(/^\//,'');assert(rel&&!rel.split('/').includes('..')&&!path.isAbsolute(rel),'Invalid asset path');const dest=path.resolve(dir,rel);assert(dest.startsWith(dir+path.sep));
  if(changed.includes(rel))continue;
  let content;const local=path.resolve('public',rel);if(fs.existsSync(local)){const b=fs.readFileSync(local);if(sha(b)===a.sha)content=b;}
- if(!content){const r=await fetch(origin+a.path,{redirect:'error',signal:AbortSignal.timeout(30000)});if(!r.ok)throw Error('Unable to copy existing public file '+a.path);content=Buffer.from(await r.arrayBuffer());assert.equal(sha(content),a.sha,'Existing file mismatch: '+a.path);}
+ if(!content){content=await retry(a.path,async()=>{const r=await fetch(origin+a.path,{redirect:'error',signal:AbortSignal.timeout(30000)});if(!r.ok)throw Error('Unable to copy existing public file '+a.path);return Buffer.from(await r.arrayBuffer());});assert.equal(sha(content),a.sha,'Existing file mismatch: '+a.path);}
  fs.mkdirSync(path.dirname(dest),{recursive:true});fs.writeFileSync(dest,content,{flag:'wx'});copied++;}
 for(const name of changed)fs.copyFileSync(path.join('public',name),path.join(dir,name),fs.constants.COPYFILE_EXCL);
 step(`Prepared ${copied} unchanged public files + ${changed.length} budget files`);
