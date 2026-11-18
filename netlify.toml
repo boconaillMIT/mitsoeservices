@@ -1,0 +1,304 @@
+[build]
+  publish = "public"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  external_node_modules = ["jose", "@netlify/blobs"]
+  included_files = ["src/account-inventory-query.sql", "src/login.html", "src/dashboard.html", "src/admin.html", "src/report.html", "src/published-report.html"]
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "no-referrer"
+    Content-Security-Policy = "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'"
+
+[[redirects]]
+  from = "/my-unit"
+  to = "/.netlify/functions/my-unit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/my-unit/"
+  to = "/.netlify/functions/my-unit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/units/:unit/commitments/closed"
+  to = "/.netlify/functions/unit-commitments-page?unit=:unit&view=closed"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/other-units/:unit/commitments/closed"
+  to = "/.netlify/functions/unit-commitments-page?unit=:unit&view=closed"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/soe-hq/commitments/closed"
+  to = "/.netlify/functions/unit-commitments-page?unit=all&view=closed"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/units/:unit/account-review"
+  to = "/.netlify/functions/account-review-page?unit=:unit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/units/:unit/account-review/:record"
+  to = "/.netlify/functions/account-review-page?unit=:unit&account=:record"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/other-units/:unit/account-review"
+  to = "/.netlify/functions/account-review-page?unit=:unit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/other-units/:unit/account-review/:record"
+  to = "/.netlify/functions/account-review-page?unit=:unit&account=:record"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/soe-hq/account-review"
+  to = "/.netlify/functions/account-review-page?unit=school"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/soe-hq/account-review/:record"
+  to = "/.netlify/functions/account-review-page?unit=school&rid=:record"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/units/:unit/commitments"
+  to = "/.netlify/functions/unit-commitments-page?unit=:unit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/other-units/:unit/commitments"
+  to = "/.netlify/functions/unit-commitments-page?unit=:unit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/soe-hq/commitments"
+  to = "/.netlify/functions/unit-commitments-page?unit=all"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/"
+  to = "/.netlify/functions/dashboard"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/index.html"
+  to = "/.netlify/functions/dashboard"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/dashboard"
+  to = "/.netlify/functions/dashboard"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/reports"
+  to = "/.netlify/functions/report-page"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/admin"
+  to = "/.netlify/functions/admin-page"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/academic-units"
+  to = "/.netlify/functions/academic-units"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/units/dmse/wallets/archaeology"
+  to = "/.netlify/functions/unit-page?unit=archaeology&section=wallet"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/units/dmse/wallets/ppsm"
+  to = "/.netlify/functions/unit-page?unit=ppst&section=wallet"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/testing/soe-fake"
+  to = "/.netlify/functions/test-controls"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/units/:unit/account-list"
+  to = "/.netlify/functions/account-inventory-page?unit=:unit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/settings/visibility"
+  to = "/.netlify/functions/visibility"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/soe-hq/allocations"
+  to = "/.netlify/functions/unit-allocations-page"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/units/:unit/allocations"
+  to = "/.netlify/functions/unit-allocations-page?unit=:unit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/other-units/:unit/allocations"
+  to = "/.netlify/functions/unit-allocations-page?unit=:unit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/units/:unit/nimbus"
+  to = "/.netlify/functions/nimbus-page?unit=:unit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/other-units/:unit/nimbus"
+  to = "/.netlify/functions/nimbus-page?unit=:unit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/units/:unit/:section"
+  to = "/.netlify/functions/unit-page?unit=:unit&section=:section"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/units/:unit"
+  to = "/.netlify/functions/unit-page?unit=:unit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/soe-wallet"
+  to = "/.netlify/functions/unit-page?unit=school&section=wallet"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/other-units"
+  to = "/.netlify/functions/other-units"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/other-units/:unit/:section"
+  to = "/.netlify/functions/unit-page?unit=:unit&section=:section"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/other-units/:unit"
+  to = "/.netlify/functions/unit-page?unit=:unit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/soe-hq"
+  to = "/.netlify/functions/service-hub?page=/soe-hq"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/soe-hq/balance-sheet"
+  to = "/.netlify/functions/service-hub?page=/soe-hq/balance-sheet"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/soe-hq/budget-explorer"
+  to = "/.netlify/functions/service-hub?page=/soe-hq/budget-explorer"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/soe-hq/budget-submissions"
+  to = "/.netlify/functions/service-hub?page=/soe-hq/budget-submissions"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/soe-hq/budget-submissions/fy27"
+  to = "/.netlify/functions/service-hub?page=/soe-hq/budget-submissions/fy27"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/soe-hq/budget-submissions/fy28"
+  to = "/.netlify/functions/service-hub?page=/soe-hq/budget-submissions/fy28"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/nimbus"
+  to = "/.netlify/functions/service-hub?page=/nimbus"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/worker-pilot"
+  to = "/.netlify/functions/worker-pilot-page"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/settings"
+  to = "/.netlify/functions/settings-page"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/settings/automatic-reports"
+  to = "/.netlify/functions/settings-page?page=automatic-reports"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/settings/manage-access"
+  to = "/.netlify/functions/admin-page"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/settings/security-review"
+  to = "/.netlify/functions/security-review"
+  status = 200
+  force = true

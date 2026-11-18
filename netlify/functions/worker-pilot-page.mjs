@@ -1,0 +1,12 @@
+import access from '../../src/access.cjs';
+import policy from '../../src/policy.cjs';
+import {PILOT_OWNER} from '../../src/worker-pilot.mjs';
+import {eventFrom,responseFrom} from '../../src/http.mjs';
+export default(request,context)=>policy.withPolicyContext(context,async()=>{
+ if(request.method!=='GET')return new Response('GET required',{status:405,headers:access.noStore});
+ const auth=await access.authorize(eventFrom(request),{scope:'school',minimum:'admin'});
+ if(auth.statusCode===401)return new Response(null,{status:302,headers:{...access.noStore,Location:'/.netlify/functions/auth-login?returnTo=%2Fworker-pilot'}});
+ if(!auth.user)return responseFrom(auth);
+ if(auth.kerberos!==PILOT_OWNER)return new Response('Brian-only pilot.',{status:403,headers:access.noStore});
+ return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Windows worker pilot · MITSOEServices</title><link rel="stylesheet" href="/style.css"><script src="/worker-pilot.js" defer></script></head><body><main><a href="/?home=1">← Services Home</a><h1>Windows worker pilot</h1><p>Brian-only review area. Automatic uploads here do not replace the shared account report or grant anyone access.</p><section class="card"><h2>Connect a pilot computer</h2><p>Create an upload token, then paste it into the Windows app. It lets the worker receive signed jobs and upload results for this private pilot only. It expires after 90 days. Warehouse and Quickbase credentials stay on your PC.</p><form id="create-device"><label>Computer label<input id="device-label" maxlength="100" value="Brian’s pilot PC"></label><button>Create pilot upload token</button></form><p id="token-status"></p><label id="token-label" hidden>One-time upload token — copy into the Windows app<textarea id="device-token" readonly autocomplete="off"></textarea></label><div id="devices"></div></section><section class="card"><h2>Latest pilot report</h2><p id="pilot-status" role="status">Loading…</p><label>Search accounts<input type="search" id="pilot-search"></label><div class="wallet-table"><table><thead><tr><th>Account</th><th>Name</th><th>Current balance</th><th>FY27 commitments</th><th>FY27 estimate</th><th>After projections</th></tr></thead><tbody id="pilot-rows"></tbody></table></div><p id="pilot-count"></p></section></main></body></html>`,{headers:{...access.noStore,'Content-Type':'text/html; charset=utf-8'}});
+});

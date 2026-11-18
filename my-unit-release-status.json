@@ -1,0 +1,35 @@
+{
+  "date": "2026-11-11",
+  "deploy_id": "6af4b5eee0c0aad01eb5aada",
+  "previous_deploy": "6aed35c3d0520b511652b07a",
+  "url": "https://mitsoeservices.netlify.app/my-unit",
+  "production_verified": true,
+  "existing_functions_preserved": 35,
+  "new_functions": 1,
+  "public_wallet_assets_unchanged": true,
+  "permissions_unchanged": true,
+  "original_session_key_verified": true,
+  "anonymous_checks": [
+    {
+      "path": "/my-unit",
+      "status": 302
+    },
+    {
+      "path": "/my-unit/",
+      "status": 302
+    },
+    {
+      "path": "/.netlify/functions/my-unit",
+      "status": 302
+    }
+  ],
+  "tests_passed": 197,
+  "existing_file_indexes_verified": 6,
+  "deployment_access_restored": true,
+  "keys_stored": "Windows CurrentUser protected, .secrets/deployment-env.bin",
+  "preserved_backend_source_note": "The live wallet-categories backend was missing from the migration export. Its original function artifact and all other original backends were preserved by digest. Future deployments must preserve the current function manifest until full current source is recovered.",
+  "discarded_draft": "6af4a929257008935d049774 (missing wallet-categories; never publish)",
+  "signin_loop_fixed": true,
+  "root_cause": "Windows pnpm absolute package links were missing at runtime. Rebuilt from a flat dependency tree with actual module files.",
+  "browser_verified": "Existing authenticated school-wide administrator reaches /?home=1 through /my-unit without looping."
+}

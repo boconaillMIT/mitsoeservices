@@ -1,0 +1,49 @@
+{
+  "deploy_id": "6ad39c74fd550dccdfefcca2",
+  "url": "https://6ad39c74fd550dccdfefcca2--mitsoeservices.netlify.app",
+  "production_changed": false,
+  "automated_tests_passed": 25,
+  "live_mit_login_verified": false,
+  "hosted_policy_storage_verified": false,
+  "initial_users": [
+    "oconaill",
+    "juliekuk",
+    "hammond",
+    "kimcs",
+    "afahim"
+  ],
+  "admins": [
+    "oconaill",
+    "juliekuk"
+  ],
+  "anonymous_route_checks": [
+    {
+      "path": "/admin",
+      "status": 503
+    },
+    {
+      "path": "/.netlify/functions/admin-page",
+      "status": 503
+    },
+    {
+      "path": "/.netlify/functions/admin-access",
+      "status": 503
+    },
+    {
+      "path": "/.netlify/functions/connectivity",
+      "status": 503
+    },
+    {
+      "path": "/src/admin.html",
+      "status": 404
+    },
+    {
+      "path": "/downloads/MITSOEServices-Worker.zip",
+      "status": 404
+    }
+  ],
+  "remaining": [
+    "approved MIT client registration and callback",
+    "live MIT sign-in and hosted storage verification"
+  ]
+}

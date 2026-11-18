@@ -1,0 +1,19 @@
+{
+  "site_id": "d5648481-35ee-4894-913c-348262857b35",
+  "deploy_id": "6ad3b8f50544390a1465833b",
+  "deploy_url": "https://6ad3b8f50544390a1465833b--mitsoeservices.netlify.app",
+  "production_changed": false,
+  "access_model": "Existing MIT sign-in and access policy retained; alternate public-shell model awaits user choice",
+  "verified_http_status": {
+    "/reports": 503,
+    "/.netlify/functions/report-access": 503,
+    "/src/report.html": 404,
+    "/reports.js": 200
+  },
+  "blocker": "MIT sign-in environment variables are not configured on this Netlify site",
+  "local_bridge_origin": "https://mitsoeservices.netlify.app",
+  "preview_bridge_connections": "Denied by exact-origin policy",
+  "worker_tests_passed": 32,
+  "netlify_tests_passed": 27,
+  "credentials_or_report_data_deployed": false
+}

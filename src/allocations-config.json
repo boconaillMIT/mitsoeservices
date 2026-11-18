@@ -1,0 +1,17 @@
+{
+  "table": "bwgbe72qg",
+  "fields": {
+    "Unit / FY Key": 6,
+    "Unit Key": 7,
+    "Access Scope": 8,
+    "Unit Name": 9,
+    "Fiscal Year": 10,
+    "Rewards and Recognition": 11,
+    "Underrecovery": 12,
+    "RA Tuition Subsidy": 13,
+    "Notes": 14,
+    "Allocation Status": 15
+  },
+  "permissions_verified": true,
+  "default_year": 2027
+}

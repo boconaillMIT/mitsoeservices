@@ -1,0 +1,14 @@
+# Dependencies and local Netlify state
+node_modules/
+.netlify/
+# Encrypted deployment keys and any local secrets — never commit
+.secrets/
+.env
+.env.*
+# One-off release scripts, receipts, logs and data snapshots (may contain financial data)
+.runtime/*
+!.runtime/budget-visuals-release.mjs
+# Large binary/report artifacts
+*.zip
+*.jpg
+*.png

@@ -1,0 +1,21 @@
+{
+  "project_name": "mitsoeservices",
+  "display_name": "MITSOEServices",
+  "team_slug": "boconaillmit",
+  "team_display_name": "MIT AeroAstro",
+  "site_id": "d5648481-35ee-4894-913c-348262857b35",
+  "site_url": "https://mitsoeservices.netlify.app/",
+  "dashboard_url": "https://app.netlify.com/projects/mitsoeservices/",
+  "backend_status": "connectivity function deployed; Netlify-to-Warehouse TCP connection timed out",
+  "deploy_id": "6ad2bc8248dd05fe24548535",
+  "connectivity_test": {
+    "source": "deployed Netlify function invoked through the published webpage",
+    "warehouse_tcp_1521": "timed out",
+    "quickbase_tcp_443": "reachable",
+    "credentials_sent": false,
+    "database_authentication_tested": false
+  },
+  "data_sync_enabled": false,
+  "requested_schedule": {"day_of_month":10,"hour":2,"timezone":"America/New_York"},
+  "credentials_in_site": false
+}

@@ -1,0 +1,26 @@
+Subject: MIT Touchstone OIDC registration for MITSOEServices
+
+We would like to enable MIT Touchstone sign-in on our Netlify-hosted site:
+https://mitsoeservices.netlify.app
+
+Please advise whether our existing AeroAstro OIDC registration can be extended
+for this application or whether a separate registration should be created.
+
+Required sign-in redirect URI:
+https://mitsoeservices.netlify.app/.netlify/functions/auth-callback
+
+The implementation uses authorization code flow with S256 PKCE, scopes
+openid profile email, and server verification of the ID token's issuer,
+audience, signature, expiry, nonce, and authorized party. Please confirm the
+issuer, client ID, and whether token-endpoint authentication should be none
+(public PKCE) or client_secret_basic (confidential web client).
+
+Please make the permitted MIT accounts eligible to sign in:
+oconaill, juliekuk, hammond, kimcs, afahim.
+The application separately enforces its own access list. oconaill and juliekuk
+will administer that list.
+
+We need preferred_username (Kerberos principal) in the verified ID token.
+Please provide any client secret through the approved secure mechanism.
+This request does not authorize changes to the existing AeroAstro site's
+redirects or sign-in behavior.

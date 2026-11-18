@@ -1,0 +1,19 @@
+import {createHash} from 'node:crypto';import {qbRequest} from './nimbus-store.mjs';
+export const ACCOUNT_TABLE='br2xvsvpw';
+export const ACCOUNT_FIELDS=[3,2,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,28,29,30,31,32,41,42];
+const xml=s=>String(s).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
+export async function nativeRequest(action,body,fetcher=fetch){if(!process.env.NIMBUS_QB_TOKEN)throw Error('Quickbase is not configured.');const r=await fetcher('https://mit.quickbase.com/db/'+ACCOUNT_TABLE,{method:'POST',headers:{'Content-Type':'application/xml','QUICKBASE-ACTION':action},body:'<qdbapi><usertoken>'+xml(process.env.NIMBUS_QB_TOKEN)+'</usertoken>'+body+'</qdbapi>',signal:AbortSignal.timeout(25000)});if(!r.ok)throw Error('Quickbase note request failed.');const raw=await r.text(),header=raw.split(/<field(?:\s|>)/i,1)[0],code=/<errcode>\s*(\d+)\s*<\/errcode>/i.exec(header)?.[1];if(code!=='0')throw Object.assign(Error('Quickbase rejected this update.'),{conflict:code==='31'});return header;}
+export function updateId(header){const id=/<update_id>\s*(\d+)\s*<\/update_id>/i.exec(header)?.[1];if(!id)throw Error('Edit-conflict protection unavailable.');return id;}
+export async function readHQ(query=qbRequest,rid){const rows=[];let expected;
+ for(let page=0;page<30;page++){const result=await query('records/query',{from:ACCOUNT_TABLE,select:ACCOUNT_FIELDS,...(rid?{where:`{3.EX.'${rid}'}`}:{ }),sortBy:[{fieldId:3,order:'ASC'}],options:{top:500,skip:rows.length}});if(!Array.isArray(result.data)||!Number.isInteger(result.metadata?.totalRecords)||expected!==undefined&&expected!==result.metadata.totalRecords)throw Error('Incomplete account catalog.');expected=result.metadata.totalRecords;rows.push(...result.data);if(rows.length===expected){if(new Set(rows.map(r=>String(r['3']?.value))).size!==rows.length)throw Error('Duplicate account records.');return rows;}if(!result.data.length)break;}throw Error('Account catalog changed.');}
+export async function requireAppendOnly(fid){const r=await fetch('https://api.quickbase.com/v1/fields/'+fid+'?tableId='+ACCOUNT_TABLE,{headers:{'QB-Realm-Hostname':'mit.quickbase.com',Authorization:'QB-USER-TOKEN '+process.env.NIMBUS_QB_TOKEN},signal:AbortSignal.timeout(15000)});if(!r.ok||(await r.json()).properties?.appendOnly!==true)throw Error('Append-only note protection unavailable.');}
+export function createHQEditor({native=nativeRequest,query=qbRequest,appendOnly=requireAppendOnly,now=()=>new Date()}={}){return {
+ async version(rid){return updateId(await native('API_GetRecordInfo','<rid>'+rid+'</rid>'));},
+ async save(rid,actor,body){const row=(await readHQ(query,rid))[0];if(!row)return {status:404,error:'Account not found.'};const fid=body.noteKind==='followup'?30:22,hash=createHash('sha256').update(JSON.stringify([actor,body.noteKind,body.text,body.flags])).digest('hex').slice(0,20),marker='[MITSOEServices '+body.operationId+' '+hash+']';
+  if(body.text&&String(row[String(fid)]?.value||'').includes(marker))return {status:200};
+  const header=await native('API_GetRecordInfo','<rid>'+rid+'</rid>');if(updateId(header)!==body.version)return {status:409,error:'This account changed. Reload before saving.'};
+  let fields='';if(body.text){await appendOnly(fid);fields+='<field fid="'+fid+'">'+xml(marker+' '+now().toISOString()+' · '+actor+'@mit.edu\n'+body.text)+'</field>';}
+  for(const [key,field]of Object.entries({followup:29,newReview:24,closedMoved:28}))if(body.flags&&Object.hasOwn(body.flags,key))fields+='<field fid="'+field+'">'+(body.flags[key]?'1':'0')+'</field>';
+  try{await native('API_EditRecord','<rid>'+rid+'</rid><update_id>'+xml(body.version)+'</update_id>'+fields);return {status:200};}catch(e){if(e.conflict)return {status:409,error:'Someone updated this account. Your note has not replaced their change. Reload.'};throw e;}
+ }
+};}

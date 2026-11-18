@@ -1,0 +1,59 @@
+MITSOEServices MIT Touchstone configuration
+
+2026-10-22 deployment update:
+Production deployment 6ada4d5e08f06d8561eb8c50 has the new MIT registration.
+Client ID: 0oa190jub6xzftoxa698
+Issuer: https://mitprod.okta.com/oauth2/default
+Client secret validated using client_secret_basic (invalid_grant for a dummy
+authorization code, rather than invalid_client). Callback registration accepted.
+The site plan rejects granular scopes for persistent site variables. Instead,
+the deployment uses CLI --env / --secret-env, explicitly limited to Functions.
+No broad-scope site secrets were created. Reapply these deployment variables on
+future deployments; they are not persistent site configuration. Never print the
+secret or embed it in source or command text. A new session key invalidates old
+sessions. 35 automated tests passed; anonymous protected APIs return 401.
+MIT login reached Duo; authenticated callback and Julie login remain unverified.
+See sso-live.json. The instructions below describe the persistent-variable route
+only when the account supports the desired scope.
+
+Public URL: https://mitsoeservices.netlify.app
+Required approved callback URL:
+https://mitsoeservices.netlify.app/.netlify/functions/auth-callback
+
+Set these in Netlify environment variables for Functions (production):
+APP_ORIGIN=https://mitsoeservices.netlify.app
+OKTA_ISSUER=<issuer confirmed by MIT for this registration>
+OKTA_CLIENT_ID=<approved client ID>
+OKTA_CLIENT_SECRET=<only for a confidential client using client_secret_basic>
+SESSION_SECRET=<unique cryptographically random value at least 32 characters>
+Access list is managed in the administrator screen at /admin after login.
+Initial users: oconaill, juliekuk, hammond, kimcs, afahim.
+Administrators: oconaill and juliekuk. No MIT_ALLOWED_USERS setting is used.
+
+Enable authorization code with S256 PKCE and openid/profile/email scopes.
+Have MIT register this site's callback and assign the appropriate users.
+Do not assume the old AeroAstro client's callback is valid for this site.
+Do not put the client secret or session secret in browser code or chat.
+
+The dashboard HTML is outside public/ and is served by the dashboard function only
+for server-verified allowed users. The connectivity API checks the same session.
+Functions fail closed if configuration is missing. CSS, JavaScript, and the sign-in
+screen contain no financial data. No ZIP download or report data is published.
+This does not add MIT SSO to the separate localhost Windows worker.
+
+Run npm test and then deploy once environment variables and registration are ready.
+Live validation: signed out sees login only; authorized MIT login sees dashboard;
+a non-allowed MIT account gets 403; direct API access while signed out is denied;
+logout removes access. Full MIT sign-in is not proven by simulated tests.
+
+Access management uses private, site-wide Netlify Blobs with strong reads and
+conditional writes. Only usernames and a bounded access-change audit are stored;
+no Warehouse results, Quickbase tokens, or passwords are stored there.
+Administrators cannot remove either designated administrator in the UI.
+Access-list changes are checked on every dashboard/API request. Removing a user
+also blocks an already signed-in session on its next protected request.
+Draft access policies are isolated from production using Netlify's server-supplied
+deploy.published flag; only the currently published deploy uses the production store.
+The bootstrap list is used only when the store has no access-policy record;
+updates persist across deployments. A storage outage denies access, without
+falling back to the bootstrap list.

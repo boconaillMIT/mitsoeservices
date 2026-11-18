@@ -1,0 +1,33 @@
+{
+  "site_url": "https://mitsoeservices.netlify.app",
+  "deploy_id": "6adb59367ea7ab63f0d1ab5b",
+  "client_id": "0oa190jub6xzftoxa698",
+  "issuer": "https://mitprod.okta.com/oauth2/default",
+  "callback": "https://mitsoeservices.netlify.app/.netlify/functions/auth-callback",
+  "configuration": "Deployment-scoped variables, Functions scope only. Client and session secrets masked; no site-wide secret variables created.",
+  "client_credentials_validated": true,
+  "automated_tests_passed": 52,
+  "anonymous_api_checks": {
+    "admin_access": 401,
+    "connectivity": 401,
+    "dashboard_source": 404
+  },
+  "live_browser_status": "Academic directory, AeroAstro full and limited pages, scoped labels and permissions table verified.",
+  "financial_data_published": true,
+  "redeployment_requirement": "Reapply Functions-only deployment variables on future deploys; do not assume deployment-scoped secrets persist automatically.",
+  "financial_storage": "Private Netlify Blobs; unit-separated snapshots; server authorization before reads",
+  "session_key_storage": "Windows user DPAPI-encrypted; Functions-only deployment secret",
+  "authentication_adapter": "Native Lambda responses preserve distinct authentication cookies",
+  "permission_changes": "None; existing school/administrator and unit read/write grants preserve their current access.",
+  "admin_identity_support": "Kerberos or @mit.edu login, case-insensitive; denied users see their own canonical login",
+  "admin_ui_verified": "Selected Edit permission for juliekuk on production; school-wide administrator fields populated. No grant was submitted.",
+  "navigation": "Home -> Academic units -> per-unit Full access / Limited Access; wallets under Full access",
+  "access_levels": [
+    "Read-only (limited)",
+    "Write (limited)",
+    "Read-only (unit-wide)",
+    "Write (unit-wide)",
+    "Administrator (unit-wide)"
+  ],
+  "unit_administration": "Unit administrators can view and change only their own unit grants and audit entries; cannot grant school or other-unit access"
+}
