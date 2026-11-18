@@ -3,6 +3,7 @@
 // site's access policy (school administrators only). No tool can write to QuickBase.
 import {loadBudgetRecords,safeValue,BUDGET_SOURCE_URL} from './budget-explorer.mjs';
 import {authenticate} from './mcp-auth.mjs';
+import {loadReserves} from './reserves.mjs';
 
 const VERSIONS=['2025-11-25','2025-06-18','2025-03-26','2024-11-05'];
 const AMOUNTS={requested:'Request Amount',dlc_recurring:'Recurring (base) - DLC',dlc_one_time:'Non-recurring (non-base) - DLC',provost_recurring:'Provost Recurring (base) - Approved',provost_one_time:'Provost Non-recurring (non-base) - Approved',soe_approved:'SoE Non-recurring (non-base) - SoE_Approved',declined_initial:'Declined',declined_final:'Declined Final',funder_unresolved:'Historical allocation - funder unresolved'};
@@ -20,7 +21,10 @@ export const TOOLS=[
   inputSchema:{type:'object',properties:{...filterProps,limit:{type:'integer',minimum:1,maximum:500,default:100},offset:{type:'integer',minimum:0,default:0}},additionalProperties:false},annotations:READ_ONLY},
  {name:'summarize_budget_requests',title:'Summarize SoE budget requests',
   description:'Totals of SoE budget request amounts from QuickBase grouped by fiscal year, department, or both. Amount columns: '+Object.keys(AMOUNTS).join(', ')+'. "recorded" counts records where the amount is filled in. Read-only.',
-  inputSchema:{type:'object',properties:{...filterProps,group_by:{type:'string',enum:['fiscal_year','department','both'],default:'fiscal_year'}},additionalProperties:false},annotations:READ_ONLY}
+  inputSchema:{type:'object',properties:{...filterProps,group_by:{type:'string',enum:['fiscal_year','department','both'],default:'fiscal_year'}},additionalProperties:false},annotations:READ_ONLY},
+ {name:'unit_reserves',title:'Unit reserves vs. spending',
+  description:'For each SoE unit, by fiscal year-end (from verified unit wallet statements): discretionary reserve (department-controlled general expendable funds + GIB carried forward), annual discretionary resources (GIB base + Pool A payout on department general accounts), months of reserve, GIB use rate, restricted department and faculty-controlled balances; plus open QuickBase commitments and the latest budget request. Use to judge which units hold large or growing reserves. Read-only.',
+  inputSchema:{type:'object',properties:{group:{type:'string',enum:['academic','all'],default:'academic',description:'academic = academic departments; all = include labs, centers and programs.'},unit:{type:'string',description:'Optional unit label or name filter, e.g. "EECS".'}},additionalProperties:false},annotations:READ_ONLY}
 ];
 
 function toRows({selected,raw}){return raw.map(r=>{const o={record_id:r['3']?.value??null};for(const f of selected)o[f.label]=safeValue(r[String(f.id)]?.value);return o;});}
@@ -52,11 +56,14 @@ export function summarize(rows,groupBy='fiscal_year'){
  return [...groups.values()].sort((x,y)=>(x.fiscal_year??0)-(y.fiscal_year??0)||String(x.department??'').localeCompare(String(y.department??'')));
 }
 
-export function createMcpHandler({auth=authenticate,load=loadBudgetRecords,log=console.log}={}){
+export function createMcpHandler({auth=authenticate,load=loadBudgetRecords,reserves=loadReserves,log=console.log}={}){
  async function callTool(name,args,kerberos){
   const tool=TOOLS.find(t=>t.name===name);if(!tool)return {error:{code:-32602,message:'Unknown tool: '+name}};
   let a;try{a=check(args,tool.inputSchema);}catch(e){return {result:{isError:true,content:[{type:'text',text:e.message}]}};}
   log('Claude connector:',kerberos,'called',name,JSON.stringify(a).slice(0,300));
+  if(name==='unit_reserves'){let r;try{r=await reserves({group:a.group||'academic'});}catch(e){console.error('Claude connector reserves error:',e.message);return {result:{isError:true,content:[{type:'text',text:'Reserve data is temporarily unavailable.'}]}};}
+   const q=a.unit?.trim().toLowerCase();if(q)r={...r,units:r.units.filter(u=>[u.label,u.name,u.scope].some(v=>String(v).toLowerCase().includes(q)))};
+   return {result:{content:[{type:'text',text:JSON.stringify(r)}],structuredContent:r}};}
   let rows;try{rows=applyFilters(toRows(await load()),a);}catch(e){console.error('Claude connector data error:',e.message);return {result:{isError:true,content:[{type:'text',text:'Budget data is temporarily unavailable from QuickBase.'}]}};}
   let data;
   if(name==='list_budget_requests'){const offset=a.offset??0,limit=a.limit??100;data={matched:rows.length,offset,returned:Math.min(limit,Math.max(0,rows.length-offset)),records:rows.slice(offset,offset+limit),source:BUDGET_SOURCE_URL};}
@@ -68,7 +75,7 @@ export function createMcpHandler({auth=authenticate,load=loadBudgetRecords,log=c
   const isNote=!('id' in msg);if(isNote)return null;
   const ok=result=>({jsonrpc:'2.0',id:msg.id,result}),fail=(code,message)=>({jsonrpc:'2.0',id:msg.id,error:{code,message}});
   switch(msg.method){
-   case 'initialize':{const asked=msg.params?.protocolVersion;return ok({protocolVersion:VERSIONS.includes(asked)?asked:VERSIONS[0],capabilities:{tools:{listChanged:false}},serverInfo:{name:'mitsoeservices',title:'MIT SoE Services',version:'1.0.0'},instructions:'Read-only access to MIT School of Engineering budget request records held in QuickBase. Use summarize_budget_requests for totals and list_budget_requests for individual records.'});}
+   case 'initialize':{const asked=msg.params?.protocolVersion;return ok({protocolVersion:VERSIONS.includes(asked)?asked:VERSIONS[0],capabilities:{tools:{listChanged:false}},serverInfo:{name:'mitsoeservices',title:'MIT SoE Services',version:'1.0.0'},instructions:'Read-only access to MIT School of Engineering budget request records and unit reserve figures. Use summarize_budget_requests for totals, list_budget_requests for individual records, and unit_reserves for reserves versus spending by unit.'});}
    case 'ping':return ok({});
    case 'tools/list':return ok({tools:TOOLS});
    case 'tools/call':{const r=await callTool(msg.params?.name,msg.params?.arguments,kerberos);return r.error?fail(r.error.code,r.error.message):ok(r.result);}

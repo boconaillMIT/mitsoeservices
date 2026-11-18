@@ -293,6 +293,12 @@
   force = true
 
 [[redirects]]
+  from = "/soe-hq/reserves"
+  to = "/.netlify/functions/service-hub?page=/soe-hq/reserves"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/soe-hq/budget-explorer"
   to = "/.netlify/functions/service-hub?page=/soe-hq/budget-explorer"
   status = 200
