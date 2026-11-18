@@ -55,6 +55,7 @@ function renderUnit(){
   +(r?tile('Months of reserve',mo(r.unit.point?.months),'after open commitments, '+(ry?fy(ry.year):'')):'')
   +(r?tile('GIB used',pct(ry?.gib_use_rate),ry?fy(ry.year):''):'')
   +(r?tile('Open commitments',short(r.unit.open_commitments),(r.unit.open_commitment_count??0)+' commitments'):'')}</div>
+ <section class="bv-panel bh-brief"><div class="bh-head"><h2>Dean’s briefing</h2><span class="bv-status bh-noprint">${data.can_edit?'Lines starting with “- ” become bullet points. Each section saves on its own.':'Prepared by SoE HQ.'}</span></div><div id="bh-notes"></div></section>
  <section class="bv-panel"><h2>${fy(data.year)} requests and HQ decisions</h2>${data.can_edit?'<p class="bv-status bh-noprint">Set each line to decline or support. Support level is the share of the request supported. SoE share is the part the School funds, and the rest goes to the Provost as cost share. Save each line.</p>':'<p class="bv-status">Read-only.</p>'}
   <div class="bv-scroll" id="bh-lines"></div></section>
  <div class="bh-two">
@@ -62,12 +63,9 @@ function renderUnit(){
   <section class="bv-panel"><h2>Reserve position</h2><div id="bh-position"></div></section>
  </div>
  <section class="bv-panel"><h2>Wallet snapshot</h2><div class="bv-scroll" id="bh-wallet"></div></section>
- <div class="bh-two bh-noprint">
-  <section class="bv-panel"><h2>Documents</h2><p class="bv-status">Encrypted document uploads for this unit and cycle are the next step.</p></section>
-  <section class="bv-panel"><h2>Dean’s briefing</h2><p class="bv-status">Talking points and background will go here once the notes format is chosen.</p></section>
- </div>
+ <section class="bv-panel bh-noprint"><h2>Documents</h2><div id="bh-files"></div></section>
  <section class="bv-panel bh-noprint"><h2>Change history</h2><div id="bh-audit"></div></section>`;
- lines();history();position();wallet();audit();
+ notes();files();lines();history();position();wallet();audit();
  $('#bh-print').addEventListener('click',()=>window.print());
 }
 function chip(t){const s=!t.lines?['none','No requests']:t.pending===t.lines?['open','Not started']:t.pending?['review','In review · '+t.pending+' pending']:['done','All lines decided'];return `<span class="bh-chip ${s[0]}">${s[1]}</span>`;}
@@ -152,8 +150,53 @@ function audit(){
   return `<li><span class="bv-status">${new Date(e.at).toLocaleString()} · ${esc(e.by)}</span> ${esc((line?.description||'Line '+e.record_id).slice(0,80))}: ${d(e.from)} → ${d(e.to)}${e.note_changed?' · note updated':''}</li>`;}).join('')}</ul>`:'<p class="bv-status">No decisions recorded yet.</p>';
 }
 
+// ---------- Dean's briefing ----------
+function rich(text){if(!text.trim())return '<p class="bv-status">Nothing written yet.</p>';const out=[];let list=null;
+ for(const raw of text.split('\n')){const line=raw.trimEnd(),m=/^\s*[-*•]\s+(.*)$/.exec(line);
+  if(m){if(!list){list=[];out.push(list);}list.push(m[1]);continue;}list=null;if(line.trim())out.push(line);else out.push('');}
+ return out.map(x=>Array.isArray(x)?'<ul>'+x.map(i=>'<li>'+esc(i)+'</li>').join('')+'</ul>':x?'<p>'+esc(x)+'</p>':'').join('');}
+function notes(){
+ const n=data.notes,secs=data.note_sections;
+ $('#bh-notes').innerHTML=`<div class="bh-sections">${Object.entries(secs).map(([k,title])=>{const sec=n.sections[k],when=sec.updated_by?`${esc(sec.updated_by)} · ${new Date(sec.updated_at).toLocaleString()}`:'';
+  return `<div class="bh-section" data-section="${k}"><h3>${title}</h3>${data.can_edit?`<div class="bh-noprint"><textarea rows="5" maxlength="10000" data-note="${k}" aria-label="${title}">${esc(sec.text)}</textarea><div class="bh-save"><button type="button" data-note-save="${k}">Save</button><span class="bv-status" data-note-msg="${k}">${when?'Saved by '+when:''}</span></div></div><div class="bh-printonly bh-rich">${rich(sec.text)}</div>`:`<div class="bh-rich">${rich(sec.text)}</div>${when?`<p class="bv-status">Updated by ${when}</p>`:''}`}</div>`;}).join('')}</div>`;
+}
+async function saveNote(k){
+ const ta=document.querySelector(`[data-note="${k}"]`),msg=document.querySelector(`[data-note-msg="${k}"]`),btn=document.querySelector(`[data-note-save="${k}"]`);
+ btn.disabled=true;msg.classList.remove('error');msg.textContent='Saving…';
+ try{const j=await send('PUT',{action:'notes',section:k,text:ta.value,etag:data.notes_etag});data.notes_etag=j.etag;data.notes=j.notes;ta.classList.remove('bh-dirty');
+  const sec=j.notes.sections[k];msg.textContent='Saved by '+sec.updated_by+' · '+new Date(sec.updated_at).toLocaleString();
+  document.querySelector(`[data-section="${k}"] .bh-printonly`).innerHTML=rich(sec.text);}
+ catch(e){msg.textContent=e.message;msg.classList.add('error');}finally{btn.disabled=false;}
+}
+// ---------- documents ----------
+const size=b=>b>=1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB';
+function files(){
+ const f=data.files;
+ $('#bh-files').innerHTML=(f.length?`<table class="bv-table"><thead><tr><th>Document</th><th class="n">Size</th><th>Uploaded</th>${data.can_edit?'<th></th>':''}</tr></thead><tbody>${f.map(x=>`<tr><td><a href="${API}?cycle=${cycle}&unit=${encodeURIComponent(unitKey)}&file=${encodeURIComponent(x.id)}">${esc(x.label||x.filename)}</a>${x.label?`<div class="bv-status">${esc(x.filename)}</div>`:''}</td><td class="n">${size(x.size)}</td><td>${esc(x.uploaded_by)} · ${new Date(x.uploaded_at).toLocaleDateString()}</td>${data.can_edit?`<td class="n"><button type="button" data-del="${esc(x.id)}">Delete</button></td>`:''}</tr>`).join('')}</tbody></table>`:'<p class="bv-status">No documents yet.</p>')
+ +(data.can_edit?`<div class="bh-upload"><input type="file" id="bh-file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.rtf,.png,.jpg,.jpeg"><input type="text" id="bh-file-label" maxlength="120" placeholder="Label (optional), e.g. Final submission"><button type="button" id="bh-upload">Upload</button><span class="bv-status" id="bh-file-msg">PDF, Office, CSV, text or images, up to 4 MB. Stored encrypted.</span></div>`:'');
+ const up=$('#bh-upload');if(up)up.addEventListener('click',upload);
+}
+async function upload(){
+ const input=$('#bh-file'),msg=$('#bh-file-msg'),file=input.files[0];msg.classList.remove('error');
+ if(!file){msg.textContent='Choose a file first.';msg.classList.add('error');return;}
+ if(file.size>4*1024*1024){msg.textContent='Files must be 4 MB or smaller.';msg.classList.add('error');return;}
+ msg.textContent='Uploading…';$('#bh-upload').disabled=true;
+ try{const b64=await new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]||'');r.onerror=()=>no(Error('Could not read the file.'));r.readAsDataURL(file);});
+  const j=await send('POST',{action:'upload',filename:file.name,label:$('#bh-file-label').value,data:b64,etag:data.files_etag});data.files=j.files;data.files_etag=j.etag;files();}
+ catch(e){msg.textContent=e.message;msg.classList.add('error');$('#bh-upload').disabled=false;}
+}
+async function removeFile(id){
+ const f=data.files.find(x=>x.id===id);if(!f||!confirm('Delete '+(f.label||f.filename)+'?'))return;
+ try{const j=await send('DELETE',{action:'delete-file',id,etag:data.files_etag});data.files=j.files;data.files_etag=j.etag;files();}catch(e){alert(e.message);}
+}
+async function send(method,payload){
+ const r=await fetch(API,{method,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({cycle,unit:unitKey,...payload})});
+ const j=await r.json().catch(()=>({}));if(!r.ok)throw Error((j.error||'Not saved.')+(r.status===409?' (Reload the page.)':''));return j;
+}
+
 document.addEventListener('change',e=>{const tr=e.target.closest('tr[data-id]');if(tr&&e.target.dataset.f)preview(tr);});
 document.addEventListener('input',e=>{const tr=e.target.closest('tr[data-id]');if(tr&&['custom','soe','note'].includes(e.target.dataset.f))preview(tr);});
-document.addEventListener('click',e=>{const b=e.target.closest('[data-save]');if(b)save(b.closest('tr'));});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-save]');if(b){save(b.closest('tr'));return;}const n=e.target.closest('[data-note-save]');if(n){saveNote(n.dataset.noteSave);return;}const d=e.target.closest('[data-del]');if(d)removeFile(d.dataset.del);});
+document.addEventListener('input',e=>{if(e.target.dataset?.note){e.target.classList.add('bh-dirty');const m=document.querySelector(`[data-note-msg="${e.target.dataset.note}"]`);if(m)m.textContent='Unsaved changes';}});
 window.addEventListener('beforeunload',e=>{if(document.querySelector('.bh-dirty')){e.preventDefault();e.returnValue='';}});
 load();

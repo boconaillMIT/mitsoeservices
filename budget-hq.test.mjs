@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import policy from './src/policy.cjs';
 import access from './src/access.cjs';
-import {createBudgetHqDataHandler,validateDecision,applyDecision,rollUp,unitKeyFor,parseCycle} from './src/budget-hq.mjs';
+import {createBudgetHqDataHandler,validateDecision,applyDecision,rollUp,unitKeyFor,parseCycle,validFilename} from './src/budget-hq.mjs';
 import {createBudgetHqPageHandler} from './src/budget-hq-pages.mjs';
 
 function state(){const data=policy.initialPolicy();for(const [u,s,r] of [['unit_admin','aeroastro','admin'],['school_limited','school','limited_read'],['school_reader','school','read'],['school_writer','school','write']])data.grants.push({username:u,scope:s,role:r});return data;}
@@ -14,8 +14,13 @@ function memoryRepo(){const m=new Map();let n=0;return {m,
  async read(c,u){const e=m.get(c+'/'+u);return e?{doc:structuredClone(e.doc),etag:e.etag}:{doc:{schema:1,cycle:c,unit:u,decisions:{},audit:[]},etag:null};},
  async readAll(c){return Object.fromEntries([...m].filter(([k])=>k.startsWith(c+'/')).map(([k,v])=>[k.slice(c.length+1),structuredClone(v.doc)]));},
  async write(c,u,doc,etag){const cur=m.get(c+'/'+u);if((cur?.etag||null)!==(etag||null))return {conflict:true};const t='e'+(++n);m.set(c+'/'+u,{doc:structuredClone(doc),etag:t});return {etag:t};}};}
-const handler=(user,repo=memoryRepo(),extra={})=>createBudgetHqDataHandler({authorize:authorize(state(),user),asks:async()=>ASKS,repo,reserves:async()=>({units:[],definitions:{}}),now:()=>new Date('2026-11-18T12:00:00Z'),...extra});
-const put=(h,body)=>h({httpMethod:'PUT',body:JSON.stringify({cycle:'fy28',...body})}).then(r=>{let json=null;try{json=JSON.parse(r.body);}catch{}return {...r,json};});
+function memoryVault(){const m=new Map();let n=0;return {m,async get(p){const e=m.get(p);return e?{value:structuredClone(e.value),etag:e.etag}:{value:null,etag:null};},
+ async put(p,value,etag){const cur=m.get(p);if((cur?.etag||null)!==(etag||null))return {conflict:true};const t='v'+(++n);m.set(p,{value:structuredClone(value),etag:t});return {etag:t};},async remove(p){m.delete(p);}};}
+const ORIGIN='https://mitsoeservices.netlify.app';
+let ids=0;
+const handler=(user,repo=memoryRepo(),extra={})=>createBudgetHqDataHandler({authorize:authorize(state(),user),asks:async()=>ASKS,repo,vault:extra.vault||memoryVault(),reserves:async()=>({units:[],definitions:{}}),now:()=>new Date('2026-11-18T12:00:00Z'),uuid:()=>'00000000-0000-4000-8000-'+String(++ids).padStart(12,'0'),appOrigin:ORIGIN,...extra});
+const send=(method,h,body,headers={origin:ORIGIN,'content-type':'application/json'})=>h({httpMethod:method,headers,body:JSON.stringify({cycle:'fy28',...body})}).then(r=>{let json=null;try{json=JSON.parse(r.body);}catch{}return {...r,json};});
+const put=(h,body,headers)=>send('PUT',h,body,headers);
 const get=(h,q)=>h({httpMethod:'GET',queryStringParameters:{cycle:'fy28',...q}}).then(r=>({...r,json:(r.headers?.['Content-Type']||'').includes('json')?JSON.parse(r.body):r.body}));
 
 test('decision maths: support level and SoE/Provost split, with recurring/one-time split',()=>{
@@ -67,4 +72,50 @@ test('pages: section, cycle and unit shells need school access; bad cycles 404',
  const unit=await p('school_reader')({httpMethod:'GET',queryStringParameters:{cycle:'fy28',unit:'eecs'}});assert.match(unit.body,/data-unit="eecs"/);assert.match(unit.body,/budget-hq\.js/);
  assert.equal((await p('oconaill')({httpMethod:'GET',queryStringParameters:{cycle:'2028'}})).statusCode,404);
  assert.equal((await p('oconaill')({httpMethod:'GET',queryStringParameters:{cycle:'fy28',unit:'../x'}})).statusCode,404);
+});
+
+test('writes require a same-origin JSON request',async()=>{
+ const h=handler('oconaill');
+ assert.equal((await put(h,{unit:'aeroastro',record_id:'1',decision:'decline'},{origin:'https://evil.example','content-type':'application/json'})).statusCode,403);
+ assert.equal((await put(h,{unit:'aeroastro',record_id:'1',decision:'decline'},{origin:ORIGIN,'content-type':'text/plain'})).statusCode,403);
+ assert.equal((await put(h,{unit:'aeroastro',record_id:'1',decision:'decline'})).statusCode,200);
+});
+test('Dean’s briefing: four sections, readers see them, writers edit with conflict protection and history',async()=>{
+ const vault=memoryVault(),w=handler('school_writer',memoryRepo(),{vault}),r=handler('school_reader',memoryRepo(),{vault});
+ let u=await get(r,{unit:'eecs'});assert.deepEqual(Object.keys(u.json.notes.sections),['talking','background','questions','recommendation']);assert.equal(u.json.notes_etag,null);
+ assert.equal((await put(r,{action:'notes',unit:'eecs',section:'talking',text:'x',etag:null})).statusCode,403,'readers cannot edit');
+ assert.equal((await put(w,{action:'notes',unit:'eecs',section:'gossip',text:'x',etag:null})).statusCode,400);
+ assert.equal((await put(w,{action:'notes',unit:'eecs',section:'talking',text:'x'.repeat(10001),etag:null})).statusCode,400);
+ const s1=await put(w,{action:'notes',unit:'eecs',section:'talking',text:'- Thank them for the TA plan\n- Ask about reserves',etag:null});assert.equal(s1.statusCode,200);
+ assert.equal((await put(w,{action:'notes',unit:'eecs',section:'background',text:'stale',etag:null})).statusCode,409,'stale etag refused');
+ const s2=await put(w,{action:'notes',unit:'eecs',section:'talking',text:'- Revised',etag:s1.json.etag});assert.equal(s2.statusCode,200);
+ u=await get(r,{unit:'eecs'});assert.equal(u.json.notes.sections.talking.text,'- Revised');assert.equal(u.json.notes.sections.talking.updated_by,'school_writer');
+ assert.equal(u.json.notes.history[0].previous,'- Thank them for the TA plan\n- Ask about reserves','previous text kept');
+ assert.equal((await put(w,{action:'notes',unit:'not-a-unit',section:'talking',text:'x'})).statusCode,404);
+});
+test('documents: encrypted vault round trip, validation, readers download, writers upload and delete',async()=>{
+ const vault=memoryVault(),w=handler('school_writer',memoryRepo(),{vault}),r=handler('school_reader',memoryRepo(),{vault});
+ const data=Buffer.from('%PDF-1.4 test').toString('base64');
+ assert.ok(validFilename('FY28 EECS final.docx'));assert.ok(!validFilename('../x.pdf'));assert.ok(!validFilename('run.exe'));assert.ok(!validFilename('.hidden.pdf'));
+ assert.equal((await send('POST',r,{action:'upload',unit:'eecs',filename:'a.pdf',data,etag:null})).statusCode,403);
+ assert.equal((await send('POST',w,{action:'upload',unit:'eecs',filename:'a.exe',data,etag:null})).statusCode,400);
+ assert.equal((await send('POST',w,{action:'upload',unit:'eecs',filename:'a.pdf',data:'not base64!',etag:null})).statusCode,400);
+ const up=await send('POST',w,{action:'upload',unit:'eecs',filename:'FY28 submission.pdf',label:'Final submission',data,etag:null});assert.equal(up.statusCode,200);
+ const meta=up.json.files[0];assert.equal(meta.size,13);assert.equal(meta.uploaded_by,'school_writer');
+ const u=await get(r,{unit:'eecs'});assert.equal(u.json.files.length,1);
+ const dl=await r({httpMethod:'GET',queryStringParameters:{cycle:'fy28',unit:'eecs',file:meta.id}});assert.equal(dl.statusCode,200);assert.equal(dl.body.toString(),'%PDF-1.4 test');
+ assert.match(dl.headers['Content-Disposition'],/attachment/);assert.equal(dl.headers['X-Content-Type-Options'],'nosniff');
+ assert.equal((await r({httpMethod:'GET',queryStringParameters:{cycle:'fy28',unit:'cee',file:meta.id}})).statusCode,404,'file is bound to its unit');
+ const stale=await send('DELETE',w,{action:'delete-file',unit:'eecs',id:meta.id,etag:null});assert.equal(stale.statusCode,409);
+ const del=await send('DELETE',w,{action:'delete-file',unit:'eecs',id:meta.id,etag:up.json.etag});assert.equal(del.statusCode,200);assert.deepEqual(del.json.files,[]);
+ assert.ok(![...vault.m.keys()].some(k=>k.includes('/file/')),'file content removed');
+});
+test('vault encrypts at rest, binds each record to its path, and enforces etags',async()=>{
+ const {createVault}=await import('./src/budget-hq.mjs');process.env.UNIT_FILES_DATA_KEY='k'.repeat(40);
+ const raw=new Map();let n=0;const store={async getWithMetadata(k){const e=raw.get(k);return e?{data:e.data,etag:e.etag}:null;},async set(k,data,o={}){const cur=raw.get(k);if(o.onlyIfNew&&cur)return {modified:false};if(o.onlyIfMatch&&cur?.etag!==o.onlyIfMatch)return {modified:false};const etag='r'+(++n);raw.set(k,{data,etag});return {modified:true,etag};},async delete(k){raw.delete(k);}};
+ const v=createVault({store});const w=await v.put('fy28/eecs/notes',{secret:'Ask about the TA plan'},null);
+ assert.ok(!raw.get('fy28/eecs/notes').data.includes('TA plan'),'stored encrypted');
+ assert.equal((await v.get('fy28/eecs/notes')).value.secret,'Ask about the TA plan');
+ assert.equal((await v.put('fy28/eecs/notes',{x:1},'wrong')).conflict,true);assert.equal((await v.put('fy28/eecs/notes',{x:1},null)).conflict,true);
+ raw.set('fy28/cee/notes',raw.get('fy28/eecs/notes'));await assert.rejects(()=>v.get('fy28/cee/notes'),'a record copied to another unit cannot be decrypted');
 });
