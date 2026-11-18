@@ -34,8 +34,9 @@ step(`Prepared ${copied} unchanged public files + ${changed.length} budget files
 
 // 2. Draft deploy and verification
 const cli=path.resolve('node_modules/netlify-cli/bin/run.js');
-let proc=spawnSync(process.execPath,[cli,'deploy','--site',siteId,'--dir',dir,'--functions','netlify/functions','--no-build','--skip-functions-cache','--json','--message','Claude connector (draft)'],{encoding:'utf8',timeout:240000,maxBuffer:4000000,windowsHide:true});
-if(proc.status!==0)throw Error('Draft deploy failed: '+redact(proc.stderr||proc.stdout||proc.error).slice(0,1200));
+step('Uploading draft (packaging functions can take several minutes)…');
+let proc=spawnSync(process.execPath,[cli,'deploy','--site',siteId,'--dir',dir,'--functions','netlify/functions','--no-build','--skip-functions-cache','--json','--message','Claude connector (draft)'],{encoding:'utf8',timeout:1200000,maxBuffer:20000000,windowsHide:true,stdio:['ignore','pipe','inherit']});
+if(proc.status!==0)throw Error('Draft deploy failed: '+redact(proc.error||proc.stdout||'see messages above').slice(0,1200));
 const draftId=JSON.parse(proc.stdout).deploy_id;assert(draftId,'No draft deploy ID returned.');
 let draft=await api('deploys/'+draftId);for(let i=0;i<30&&draft.state!=='ready';i++){if(draft.state==='error')throw Error('Draft failed to build.');await new Promise(r=>setTimeout(r,2000));draft=await api('deploys/'+draftId);}
 assert.equal(draft.state,'ready','Draft not ready.');
@@ -67,8 +68,9 @@ async function verify(){
 // Publish a fresh production build of the same verified folder and functions instead.
 let releaseId=null;
 try{
- proc=spawnSync(process.execPath,[cli,'deploy','--site',siteId,'--prod','--dir',dir,'--functions','netlify/functions','--no-build','--skip-functions-cache','--json','--message','Claude connector (read-only) + new Budget Explorer'],{encoding:'utf8',timeout:240000,maxBuffer:4000000,windowsHide:true});
- if(proc.status!==0)throw Error('Production deploy failed: '+redact(proc.stderr||proc.stdout||proc.error).slice(0,1200));
+ step('Publishing production build (several minutes)…');
+ proc=spawnSync(process.execPath,[cli,'deploy','--site',siteId,'--prod','--dir',dir,'--functions','netlify/functions','--no-build','--skip-functions-cache','--json','--message','Claude connector (read-only) + new Budget Explorer'],{encoding:'utf8',timeout:1200000,maxBuffer:20000000,windowsHide:true,stdio:['ignore','pipe','inherit']});
+ if(proc.status!==0)throw Error('Production deploy failed: '+redact(proc.error||proc.stdout||'see messages above').slice(0,1200));
  releaseId=JSON.parse(proc.stdout).deploy_id;assert(releaseId,'No production deploy ID returned.');step('Published '+releaseId+' to production; checking…');
  const rel=await api('deploys/'+releaseId);assert.deepEqual(rel.available_functions.map(f=>f.n).sort(),fnExpected,'Production build function list differs from the verified draft.');
  let problem;for(let i=0;i<8;i++){try{assert.equal((await api('sites/'+siteId)).published_deploy.id,releaseId,'Release did not become current.');await verify();problem=null;break;}catch(e){problem=e;await new Promise(r=>setTimeout(r,2500));}}
