@@ -8,7 +8,11 @@ const pctPlain=v=>v===null||v===undefined||!Number.isFinite(v)?'—':Math.round(
 const mo=v=>v===null||v===undefined||!Number.isFinite(v)?'—':(Math.round(v*10)/10).toFixed(1);
 const median=a=>{const s=a.filter(Number.isFinite).sort((x,y)=>x-y);if(!s.length)return null;const m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;};
 const HOT='#c8572a',HOT_FILL='rgba(200,87,42,.62)',CALM='#7f9879',CALM_FILL='rgba(127,152,121,.45)';
-const state={group:'academic',defn:'department',commit:'yes',high:12,year:null,focus:null,sort:'months'};
+const params=new URLSearchParams(location.search);
+const state={group:['academic','other','all'].includes(params.get('group'))?params.get('group'):'academic',defn:'department',commit:'yes',high:12,year:null,focus:params.get('unit')||null,view:params.get('view')==='share'?'share':'full',sort:'months'};
+const GROUP_LABEL={academic:'academic departments',other:'labs, centers & programs',all:'SoE units'};
+const share=()=>state.view==='share';
+const SEL='#1d4f8f',SEL_FILL='rgba(29,79,143,.85)',ANON='#9aa597',ANON_FILL='rgba(154,165,151,.38)';
 let data=null;
 
 async function load(){
@@ -20,6 +24,7 @@ async function load(){
  }catch(e){$('#rv-loading').textContent=e.message;$('#rv-loading').classList.add('error');return;}
  const years=[...new Set(data.units.flatMap(u=>u.years.map(y=>y.year)))].sort();
  if(!years.includes(state.year))state.year=years[years.length-1]??null;
+ if(state.focus&&!data.units.some(u=>u.scope===state.focus))state.focus=null;
  $('#rv-loading').hidden=true;$('#rv-content').hidden=false;render();
 }
 
@@ -42,7 +47,9 @@ function controls(){
  const years=[...new Set(data.units.flatMap(u=>u.years.map(y=>y.year)))].sort();
  const opt=(v,l,cur)=>`<option value="${v}"${String(v)===String(cur)?' selected':''}>${esc(l)}</option>`;
  $('#rv-year').innerHTML=years.map(y=>opt(y,fy(y)+' year-end',state.year)).join('');
- $('#rv-group').innerHTML=opt('academic','Academic departments',state.group)+opt('all','All units (incl. labs & centers)',state.group);
+ $('#rv-group').innerHTML=opt('academic','Academic departments',state.group)+opt('other','Labs, centers & programs',state.group)+opt('all','All SoE units',state.group);
+ $('#rv-unit').innerHTML=opt('','— No unit selected —',state.focus||'')+[...data.units].sort((a,b)=>a.label.localeCompare(b.label)).map(u=>opt(u.scope,u.label+' — '+u.name,state.focus)).join('');
+ $('#rv-view').innerHTML=opt('full','Full view (all names)',state.view)+opt('share','Share view (selected unit only)',state.view);
  $('#rv-defn').innerHTML=opt('department','Department discretionary only',state.defn)+opt('faculty','Department + faculty-controlled',state.defn);
  $('#rv-commit').innerHTML=opt('yes','Subtract open commitments',state.commit)+opt('no','Before commitments',state.commit);
  $('#rv-high').innerHTML=[6,9,12,18,24].map(m=>opt(m,'Above '+m+' months',state.high)).join('');
@@ -51,6 +58,12 @@ function controls(){
 function kpis(rows){
  const r=rows.filter(u=>u.row),hot=r.filter(u=>u.row.hot);
  const tile=(label,value,note)=>`<div class="bv-kpi"><span>${label}</span><strong>${value}</strong><small>${note}</small></div>`;
+ if(share()){const u=r.find(x=>x.scope===state.focus);if(!u){$('#rv-kpis').innerHTML='';return;}
+  const rank=[...r].filter(x=>x.row.months!==null).sort((a,b)=>b.row.months-a.row.months).findIndex(x=>x.scope===u.scope)+1;
+  $('#rv-kpis').innerHTML=tile(esc(u.label)+' reserve',mo(u.row.months)+' mo','of annual discretionary resources, '+fy(state.year))+
+   tile('Median of peers',mo(median(r.map(x=>x.row.months)))+' mo',r.length+' '+GROUP_LABEL[state.group])+
+   tile('Change per year',pct(u.row.growth),'since '+fy(u.row.from)+', % of annual resources')+
+   tile('Position',rank?rank+' of '+r.length:'—','1 = largest reserve relative to resources');return;}
  $('#rv-kpis').innerHTML=
   tile('Units accumulating',hot.length+' of '+r.length,'above '+state.high+' months and growing')+
   tile('Median reserve',mo(median(r.map(u=>u.row.months)))+' mo','of annual discretionary resources')+
@@ -60,13 +73,14 @@ function kpis(rows){
 
 function chart(rows){
  const r=rows.filter(u=>u.row&&u.row.months!==null&&u.row.growth!==null);
+ if(share()&&!state.focus){$('#rv-chart').innerHTML='<p class="bv-status">Choose a unit to share.</p>';$('#rv-chart-note').textContent='';return;}
  if(!r.length){$('#rv-chart').innerHTML='<p class="bv-status">Not enough statement years to plot.</p>';return;}
  const W=900,H=460,L=64,R=24,T=24,B=54,iw=W-L-R,ih=H-T-B;
  const xs=r.map(u=>u.row.months),ys=r.map(u=>u.row.growth);
  const xmax=Math.max(state.high*1.6,Math.max(...xs)*1.12),xmin=Math.min(0,Math.min(...xs)*1.12);
  const ylo=Math.min(-.15,Math.min(...ys)*1.25),yhi=Math.max(.15,Math.max(...ys)*1.25);
  const X=v=>L+(v-xmin)/(xmax-xmin)*iw,Y=v=>T+(yhi-v)/(yhi-ylo)*ih;
- const maxAsk=Math.max(1,...r.map(u=>u.ask||0)),rad=u=>7+Math.sqrt((u.ask||0)/maxAsk)*26;
+ const maxAsk=Math.max(1,...r.map(u=>u.ask||0)),rad=u=>share()?(u.scope===state.focus?11:8):7+Math.sqrt((u.ask||0)/maxAsk)*26;
  const step=xmax>40?10:xmax>20?5:3,ticksX=[];for(let v=Math.ceil(xmin/step)*step;v<=xmax;v+=step)ticksX.push(v);
  const yStep=(yhi-ylo)>.8?.2:.1,ticksY=[];for(let v=Math.ceil(ylo/yStep)*yStep;v<=yhi+1e-9;v+=yStep)ticksY.push(Math.round(v*100)/100);
  let s=`<svg viewBox="0 0 ${W} ${H}" class="rv-svg" role="img" aria-label="Units plotted by months of discretionary reserve and yearly change in reserve; bubble size is the latest budget request.">`;
@@ -81,11 +95,16 @@ function chart(rows){
  s+=`<text x="${X((Math.max(xmin,3)+Math.min(state.high,xmax))/2)}" y="${T+ih-8}" class="rv-zone" text-anchor="middle">Healthy band</text>`;
  s+=`<text x="${L+iw/2}" y="${H-8}" class="rv-axis" text-anchor="middle">Months of discretionary reserve${state.commit==='yes'?' after open commitments':''} (${fy(state.year)} year-end)</text>`;
  s+=`<text transform="translate(16 ${T+ih/2}) rotate(-90)" class="rv-axis" text-anchor="middle">Change in reserve per year, % of annual resources</text>`;
- for(const u of [...r].sort((a,b)=>rad(b)-rad(a))){const x=X(u.row.months),y=Y(u.row.growth),rr=rad(u),f=u.scope===state.focus;
-  s+=`<g class="rv-dot" data-unit="${esc(u.scope)}" tabindex="0" role="button" aria-label="${esc(u.label)}"><title>${esc(u.label)}: ${mo(u.row.months)} months; ${pct(u.row.growth)} per year since ${fy(u.row.from)}; ${data.ask_year?fy(data.ask_year)+' ask ':'ask '}${short(u.ask)}</title><circle cx="${x}" cy="${y}" r="${rr}" fill="${u.row.hot?HOT_FILL:CALM_FILL}" stroke="${f?'#173d31':u.row.hot?HOT:CALM}" stroke-width="${f?2.5:1}"/><text x="${x}" y="${y-rr-5}" class="rv-label" text-anchor="middle">${esc(u.label)}</text></g>`;}
+ const order=[...r].sort((a,b)=>(a.scope===state.focus)-(b.scope===state.focus)||rad(b)-rad(a));
+ for(const u of order){const x=X(u.row.months),y=Y(u.row.growth),rr=rad(u),sel=u.scope===state.focus;
+  if(share()&&!sel){s+=`<g class="rv-anon" aria-hidden="true"><circle cx="${x}" cy="${y}" r="${rr}" fill="${ANON_FILL}" stroke="${ANON}" stroke-width="1"/></g>`;continue;}
+  const fill=sel?SEL_FILL:u.row.hot?HOT_FILL:CALM_FILL,stroke=sel?SEL:u.row.hot?HOT:CALM,dim=state.focus&&!sel?' rv-dim':'';
+  s+=`<g class="rv-dot${dim}${sel?' rv-sel':''}" data-unit="${esc(u.scope)}" tabindex="0" role="button" aria-label="${esc(u.label)}"><title>${esc(u.label)}: ${mo(u.row.months)} months; ${pct(u.row.growth)} per year since ${fy(u.row.from)}${share()?'':'; '+(data.ask_year?fy(data.ask_year)+' ask ':'ask ')+short(u.ask)}</title><circle cx="${x}" cy="${y}" r="${rr}" fill="${fill}" stroke="${stroke}" stroke-width="${sel?2.5:1}"/><text x="${x}" y="${y-rr-5}" class="rv-label${sel?' sel':''}" text-anchor="middle">${esc(u.label)}</text></g>`;}
  $('#rv-chart').innerHTML=s+'</svg>';
  const missing=rows.filter(u=>!u.row||u.row.months===null||u.row.growth===null).map(u=>u.label);
- $('#rv-chart-note').textContent=(missing.length?'Not plotted (no statement or too few years): '+missing.join(', ')+'. ':'')+'Bubble size = '+(data.ask_year?fy(data.ask_year)+' ':'')+'request. Click a unit for detail.';
+ const me=rows.find(u=>u.scope===state.focus);
+ $('#rv-chart-note').textContent=share()?(me?`Each dot is one of ${r.length} ${GROUP_LABEL[state.group]}; only ${me.label} is named.`+(r.includes(me)?'':` ${me.label} has too few statement years to plot.`):'Choose a unit to share.')
+  :(missing.length?'Not plotted (no statement or too few years): '+missing.join(', ')+'. ':'')+'Bubble size = '+(data.ask_year?fy(data.ask_year)+' ':'')+'request. Click a unit to highlight it.';
 }
 
 const COLS=[
@@ -102,7 +121,20 @@ const COLS=[
  ['ask','Ask',u=>short(u.ask),u=>u.ask??-1,1],
  ['share','Ask ÷ uncommitted',u=>pctPlain(u.row.askShare),u=>u.row.askShare??-1,1]
 ];
+function shareTable(rows){
+ const r=rows.filter(u=>u.row),me=r.find(u=>u.scope===state.focus);
+ if(!me){$('#rv-table').innerHTML=state.focus?'<p class="bv-status">No verified statement for this unit for '+fy(state.year)+'.</p>':'';return;}
+ const cols=COLS.filter(c=>!['commit','ask','share'].includes(c[0])||c[0]==='commit');
+ const med=c=>{const v=median(r.map(c[3]).filter(x=>Number.isFinite(x)&&x>-1e8));return v;};
+ const fmt={reserve:short,commit:short,free:short,resources:short,months:mo,growth:pct,gib:pctPlain,faculty:short,restricted:short};
+ const head=cols.map(c=>`<th class="${c[4]?'n':''}">${c[0]==='label'?'':c[1]}</th>`).join('');
+ const mine=cols.map((c,i)=>i===0?`<td><strong>${esc(me.label)}</strong></td>`:`<td class="n">${c[2](me)}</td>`).join('');
+ const mid=cols.map((c,i)=>i===0?`<td>Median of ${r.length} ${GROUP_LABEL[state.group]}</td>`:`<td class="n">${(fmt[c[0]]||short)(med(c))}</td>`).join('');
+ $('#rv-table').innerHTML=`<table class="bv-table"><thead><tr>${head}</tr></thead><tbody><tr class="rv-focus">${mine}</tr><tr>${mid}</tr></tbody></table><p class="bv-status">Other units are not shown individually in this view.</p>`;
+}
 function table(rows){
+ if(share()){$('#rv-table-title').textContent='Compared with peers';$('#rv-table-help').textContent='The selected unit against the median of its peer group.';shareTable(rows);return;}
+ $('#rv-table-title').textContent='All units';$('#rv-table-help').textContent='Click a column to sort. Shaded rows are accumulating: above the flag level and growing.';
  const col=COLS.find(c=>c[0]===state.sort)||COLS[5],list=rows.filter(u=>u.row).sort((a,b)=>col[0]==='label'?String(a.label).localeCompare(b.label):col[3](b)-col[3](a));
  const head=COLS.map(c=>`<th class="${c[4]?'n':''}"><button type="button" class="rv-sort${c[0]===state.sort?' on':''}" data-sort="${c[0]}">${c[0]==='ask'&&data.ask_year?fy(data.ask_year)+' ask':c[1]}</button></th>`).join('');
  const body=list.map(u=>`<tr class="${u.row.hot?'rv-hot':''}${u.scope===state.focus?' rv-focus':''}">${COLS.map((c,i)=>i===0?`<td><button type="button" class="bv-link" data-unit="${esc(u.scope)}">${c[2](u)}</button>${u.row.hot?' <span class="rv-flag">accumulating</span>':''}</td>`:`<td class="n">${c[2](u)}</td>`).join('')}</tr>`).join('');
@@ -111,8 +143,8 @@ function table(rows){
 }
 
 function detail(rows){
- const u=rows.find(x=>x.scope===state.focus)||rows.filter(x=>x.row).sort((a,b)=>(b.row.months??0)-(a.row.months??0))[0];
- if(!u){$('#rv-detail').innerHTML='';return;}state.focus=u.scope;
+ const u=rows.find(x=>x.scope===state.focus)||(share()?null:rows.filter(x=>x.row).sort((a,b)=>(b.row.months??0)-(a.row.months??0))[0]);
+ if(!u){$('#rv-detail-title').textContent='Unit detail';$('#rv-detail').innerHTML='';return;}
  $('#rv-detail-title').textContent=u.name+' by year';
  const max=Math.max(1,...u.years.map(y=>y.general+y.gib_carry+(state.defn==='faculty'?y.faculty:0)));
  const bar=y=>{const segs=[[y.gib_carry,'#2f6f5a','GIB carried forward'],[y.general,'#86b49f','Department general funds']];if(state.defn==='faculty')segs.push([y.faculty,'#d7c08a','Faculty-controlled']);
@@ -124,14 +156,16 @@ function detail(rows){
 
 function notes(){
  const d=data.definitions;
- $('#rv-method').innerHTML=`<ul>${[['Reserve',d.reserve],['Annual resources',d.resources],['Months',d.months],['Change per year',d.trend],['GIB used',d.gib_use_rate],['Not counted',d.excluded],['Commitments','Open commitments recorded in QuickBase (unpaid amounts) are subtracted from the latest year only, when that option is on.']].map(([k,v])=>`<li><strong>${k}:</strong> ${esc(v)}</li>`).join('')}</ul>${data.notes.length?'<p class="bv-status">'+data.notes.map(esc).join(' ')+'</p>':''}<p class="bv-status">Generated ${new Date(data.generated_at).toLocaleString()}.</p>`;
+ $('#rv-method').innerHTML=`<ul>${[['Reserve',d.reserve],['Annual resources',d.resources],['Months',d.months],['Change per year',d.trend],['GIB used',d.gib_use_rate],['Not counted',d.excluded],['Commitments','Open commitments recorded in QuickBase (unpaid amounts) are subtracted from the latest year only, when that option is on.']].map(([k,v])=>`<li><strong>${k}:</strong> ${esc(v)}</li>`).join('')}</ul>${data.notes.length&&!share()?'<p class="bv-status">'+data.notes.map(esc).join(' ')+'</p>':''}<p class="bv-status">Generated ${new Date(data.generated_at).toLocaleString()}.</p>`;
 }
 
-function render(){controls();const rows=compute();kpis(rows);chart(rows);table(rows);detail(rows);notes();}
+function syncUrl(){const q=new URLSearchParams();if(state.group!=='academic')q.set('group',state.group);if(state.focus)q.set('unit',state.focus);if(state.view==='share')q.set('view','share');history.replaceState(null,'',location.pathname+(q.size?'?'+q:''));}
+function render(){controls();const rows=compute();document.getElementById('rv').classList.toggle('rv-sharing',share());kpis(rows);chart(rows);table(rows);detail(rows);notes();syncUrl();}
 document.addEventListener('change',e=>{const id=e.target.id;if(!id?.startsWith('rv-'))return;
  const v=e.target.value;if(id==='rv-group'){state.group=v;load();return;}
+ if(id==='rv-unit')state.focus=v||null;if(id==='rv-view')state.view=v;
  if(id==='rv-year')state.year=Number(v);if(id==='rv-defn')state.defn=v;if(id==='rv-commit')state.commit=v;if(id==='rv-high')state.high=Number(v);render();});
 document.addEventListener('click',e=>{const s=e.target.closest('[data-sort]');if(s){state.sort=s.dataset.sort;render();return;}
- const u=e.target.closest('[data-unit]');if(u&&$('#rv').contains(u)){state.focus=u.dataset.unit;render();$('#rv-detail-panel').scrollIntoView({behavior:'smooth',block:'start'});}});
+ const u=e.target.closest('[data-unit]');if(u&&$('#rv').contains(u)){if(share())return;state.focus=state.focus===u.dataset.unit&&u.tagName!=='BUTTON'?null:u.dataset.unit;render();$('#rv-detail-panel').scrollIntoView({behavior:'smooth',block:'start'});}});
 document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.classList?.contains('rv-dot')){e.preventDefault();e.target.dispatchEvent(new MouseEvent('click',{bubbles:true}));}});
 load();

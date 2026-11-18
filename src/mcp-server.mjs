@@ -24,7 +24,7 @@ export const TOOLS=[
   inputSchema:{type:'object',properties:{...filterProps,group_by:{type:'string',enum:['fiscal_year','department','both'],default:'fiscal_year'}},additionalProperties:false},annotations:READ_ONLY},
  {name:'unit_reserves',title:'Unit reserves vs. spending',
   description:'For each SoE unit, by fiscal year-end (from verified unit wallet statements): discretionary reserve (department-controlled general expendable funds + GIB carried forward), annual discretionary resources (GIB base + Pool A payout on department general accounts), months of reserve, GIB use rate, restricted department and faculty-controlled balances; plus open QuickBase commitments and the latest budget request. Use to judge which units hold large or growing reserves. Read-only.',
-  inputSchema:{type:'object',properties:{group:{type:'string',enum:['academic','all'],default:'academic',description:'academic = academic departments; all = include labs, centers and programs.'},unit:{type:'string',description:'Optional unit label or name filter, e.g. "EECS".'}},additionalProperties:false},annotations:READ_ONLY}
+  inputSchema:{type:'object',properties:{group:{type:'string',enum:['academic','other','all'],default:'academic',description:'academic = academic departments; other = labs, centers and programs; all = both.'},unit:{type:'string',description:'Optional unit label or name filter, e.g. "EECS".'}},additionalProperties:false},annotations:READ_ONLY}
 ];
 
 function toRows({selected,raw}){return raw.map(r=>{const o={record_id:r['3']?.value??null};for(const f of selected)o[f.label]=safeValue(r[String(f.id)]?.value);return o;});}

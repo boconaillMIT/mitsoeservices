@@ -62,3 +62,9 @@ test('connector exposes reserves read-only and filters by unit',async()=>{
  const r=await (await h(new Request('https://x/mcp',{method:'POST',body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'unit_reserves',arguments:{unit:'eecs'}}})}))).json();
  assert.deepEqual(r.result.structuredContent.units.map(u=>u.scope),['eecs']);
 });
+test('peer groups: academic, other (labs/centers/programs) and all',async()=>{
+ const {unitScopes}=await import('./src/reserves.mjs');
+ const a=await unitScopes('academic'),o=await unitScopes('other'),all=await unitScopes('all');
+ assert.ok(a.includes('eecs')&&!a.includes('soe-fake'));assert.ok(o.length>0&&o.every(k=>!a.includes(k)));
+ assert.deepEqual([...a,...o].sort(),[...all].sort());
+});

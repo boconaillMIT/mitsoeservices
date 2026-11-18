@@ -10,3 +10,6 @@
 .rv-flag{display:inline-block;font-size:10.5px;color:#8a3b17;background:#f6e0d2;border-radius:4px;padding:1px 6px;margin-left:4px;white-space:nowrap}
 .rv-bar{display:flex;height:14px;background:#f3f6f0;border-radius:3px;overflow:hidden;gap:1px}.rv-bar i{display:block;height:100%}
 #rv-method ul{margin:0 0 8px;padding-left:18px;font-size:12.5px;line-height:1.6;color:#33493f}
+.rv-dot.rv-dim circle{opacity:.45}.rv-dot.rv-dim .rv-label{fill:#7a8a74;font-weight:500}
+.rv-label.sel{fill:#1d4f8f;font-size:13px}
+.rv-sharing .rv-zone.hot{fill:#7a8a74;font-weight:500}

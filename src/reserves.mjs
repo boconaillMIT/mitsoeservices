@@ -62,7 +62,9 @@ export function trend(years){
  return {from:first.year,to:last.year,change:round(last.reserve-first.reserve),per_year_pct_of_resources:Math.round((last.reserve-first.reserve)/span/last.resources*1000)/1000};
 }
 
-export async function unitScopes(group){const keys=Object.keys(group==='all'?units.ALL_UNITS:units.UNITS).filter(k=>k!=='soe-fake');return keys;}
+export const GROUPS=['academic','other','all'];
+export async function unitScopes(group){const all=Object.keys(units.ALL_UNITS).filter(k=>k!=='soe-fake'),academic=k=>Object.hasOwn(units.UNITS,k);
+ return group==='all'?all:group==='other'?all.filter(k=>!academic(k)):all.filter(academic);}
 
 export async function loadReserves({group='academic',read=readUnit,query=qbRequest,budget=loadBudgetRecords}={}){
  const scopes=await unitScopes(group),notes=[];
@@ -105,7 +107,7 @@ export function createReservesHandler({authorize=access.authorize,load=loadReser
  if(event.httpMethod!=='GET')return reply(405,{error:'GET required.'});
  const auth=await authorize(event,{scope:'school',minimum:'admin'});if(auth.statusCode)return auth;
  if(auth.features?.wallets===false)return reply(403,{error:'Wallet data is currently hidden for this access level.'});
- const group=event.queryStringParameters?.group==='all'?'all':'academic';
+ const asked=event.queryStringParameters?.group,group=GROUPS.includes(asked)?asked:'academic';
  try{if(!cache||cache.group!==group||now()-cache.at>5*60*1000||event.queryStringParameters?.refresh==='1')cache={group,at:now(),data:await load({group})};return reply(200,cache.data);}
  catch(e){console.error('Reserves:',e.message);return reply(503,{error:'Reserve data is temporarily unavailable.'});}
 };}
