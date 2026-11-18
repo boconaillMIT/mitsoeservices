@@ -13,6 +13,7 @@ node_modules/
 !.runtime/reserves-release.mjs
 !.runtime/budget-hq-release.mjs
 !.runtime/budget-hq-qb-release.mjs
+!.runtime/create-budget-hq-tables.mjs
 # Large binary/report artifacts
 *.zip
 *.jpg
