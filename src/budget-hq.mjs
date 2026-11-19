@@ -17,16 +17,16 @@ export const DECISIONS=['pending','decline','support'];
 const MAX_NOTE=1000,MAX_AUDIT=500;
 export function parseCycle(value){const m=/^fy(\d{2})$/i.exec(String(value||''));return m?{cycle:'fy'+m[1],year:2000+Number(m[1])}:null;}
 const slug=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'unassigned';
-export function unitKeyFor(department){const scope=nameMapping.scopeFor(department);return scope?units.permissionScope(scope):'x-'+slug(department);}
+export function unitKeyFor(department){const budgetAliases={'IDSS / TPP':'idss','IDSS/TPP':'idss','CTL/SCM':'ctl','TLC/GEL':'gel'};const scope=budgetAliases[department]||nameMapping.scopeFor(department);return scope?units.permissionScope(scope):'x-'+slug(department);}
 export function unitInfo(key,departments=[]){
- const u=units.ALL_UNITS[key];if(u)return {key,label:u.label,name:u.name,academic:Object.hasOwn(units.UNITS,key),has_wallet:true};
+ const u=units.ALL_UNITS[key]||(key==='school'?units.WALLETS.school:null);if(u)return {key,label:u.label,name:u.name,academic:Object.hasOwn(units.UNITS,key),has_wallet:true};
  const name=departments[0]||'Unassigned';return {key,label:name,name:name+' (not mapped to a site unit)',academic:false,has_wallet:false};
 }
 
 // ---------- QuickBase request lines ----------
 export async function loadAskRows(load=loadBudgetRecords){
  const {selected,raw}=await load();
- return raw.map(r=>{const row=Object.fromEntries(selected.map(f=>[f.label,safeValue(r[String(f.id)]?.value)]));const m=mapRecord(row);
+ return raw.map(r=>{const row=Object.fromEntries(selected.map(f=>[f.label,f.label==='Workbook Source JSON'?String(r[String(f.id)]?.value||'').slice(0,50000):safeValue(r[String(f.id)]?.value)]));const m=mapRecord(row);
   return {...m,record_id:String(r['3']?.value??''),revised:String(row['Revised Request Description']??'').trim(),original:String(row['Original Request Description']??'').trim(),
    recurring:numberOrNull(row['Recurring (base) - DLC']),onetime:numberOrNull(row['Non-recurring (non-base) - DLC']),unit_key:unitKeyFor(m.unit)};});
 }
@@ -43,18 +43,18 @@ export function validateDecision(input){
 }
 const r0=v=>v===null||!Number.isFinite(v)?null:Math.round(v);
 export function applyDecision(ask,dec){
- const requested=ask.requested??0,d=dec||{decision:'pending'};
+ const requested=ask.requested,d=dec||{decision:'pending'};
  if(d.decision!=='support')return {decision:d.decision,support_pct:d.decision==='decline'?0:null,soe_pct:null,provost_pct:null,supported:d.decision==='decline'?0:null,soe:d.decision==='decline'?0:null,provost:d.decision==='decline'?0:null,supported_recurring:null,supported_onetime:null,note:d.note||'',updated_by:d.updated_by||null,updated_at:d.updated_at||null};
- const f=d.support_pct/100,supported=requested*f,soe=supported*d.soe_pct/100;
- return {decision:'support',support_pct:d.support_pct,soe_pct:d.soe_pct,provost_pct:Math.round((100-d.soe_pct)*10)/10,supported:r0(supported),soe:r0(soe),provost:r0(supported-soe),
+ const f=d.support_pct/100,supported=requested===null?null:requested*f,soe=supported===null?null:supported*d.soe_pct/100;
+ return {decision:'support',support_pct:d.support_pct,soe_pct:d.soe_pct,provost_pct:Math.round((100-d.soe_pct)*10)/10,supported:r0(supported),soe:r0(soe),provost:supported===null?null:r0(supported-soe),
   supported_recurring:ask.recurring===null?null:r0(ask.recurring*f),supported_onetime:ask.onetime===null?null:r0(ask.onetime*f),note:d.note||'',updated_by:d.updated_by||null,updated_at:d.updated_at||null};
 }
 export function rollUp(lines){
  const sum=k=>lines.reduce((s,l)=>s+(l[k]??0),0),count=d=>lines.filter(l=>l.decision===d).length;
- return {lines:lines.length,requested:r0(sum('requested')),recurring:r0(sum('recurring')),onetime:r0(sum('onetime')),supported:r0(sum('supported')),soe:r0(sum('soe')),provost:r0(sum('provost')),
+ return {lines:lines.length,unpriced:lines.filter(l=>l.requested===null).length,source_workbooks:[...new Set(lines.flatMap(l=>l.source?.sources?.map(s=>s.workbook)||[]))],requested:lines.length&&lines.every(l=>l.requested===null)?null:r0(sum('requested')),recurring:r0(sum('recurring')),onetime:r0(sum('onetime')),supported:r0(sum('supported')),soe:r0(sum('soe')),provost:r0(sum('provost')),
   declined_requested:r0(lines.filter(l=>l.decision==='decline').reduce((s,l)=>s+(l.requested??0),0)),pending:count('pending'),supported_count:count('support'),declined_count:count('decline')};
 }
-const lineOf=(a,decisions)=>({record_id:a.record_id,description:a.revised||a.original||a.request,original:a.original,revised:a.revised,category:a.category,recurring:a.recurring,onetime:a.onetime,requested:a.requested,qb_status:a.decision,...applyDecision(a,decisions?.[a.record_id]),version:decisions?.[a.record_id]?.version||null});
+const lineOf=(a,decisions)=>({record_id:a.record_id,description:a.revised||a.original||a.request,original:a.original,revised:a.revised,category:a.category,source:a.source,recurring:a.recurring,onetime:a.onetime,requested:a.requested,qb_status:a.decision,...applyDecision(a,decisions?.[a.record_id]),version:decisions?.[a.record_id]?.version||null});
 
 // ---------- reserves snapshot (anonymous peers) ----------
 let reserveCache=new Map();
@@ -100,6 +100,7 @@ export function createBudgetHqDataHandler({authorize=access.authorize,asks=loadA
   if(action==='decision'){
    const ask=(byUnit.get(unit)||[]).find(a=>a.record_id===String(body.record_id||''));
    if(!ask||!/^\d{1,12}$/.test(ask.record_id))return reply(404,{error:'That request line is not in this unit and cycle.'});
+   if(body.decision==='support'&&ask.requested===null)return reply(400,{error:'This request has no verified amount. Record its amount in QuickBase before setting a support percentage.'});
    const v=validateDecision(body);if(v.error)return reply(400,{error:v.error});
    const r=await store.saveDecision(c.cycle,unit,ask.record_id,v.value,version,auth.kerberos,(ask.revised||ask.original||ask.request||'Line '+ask.record_id).slice(0,120));
    if(r.conflict)return conflict('line');console.log('Budget HQ decision:',auth.kerberos,c.cycle,unit,ask.record_id,v.value.decision);
@@ -127,7 +128,7 @@ export function createBudgetHqDataHandler({authorize=access.authorize,asks=loadA
   const saved=ready?await store.unit(c.cycle,key):{decisions:{},sections:Object.fromEntries(Object.keys(NOTE_SECTIONS).map(k=>[k,{text:'',updated_by:null,updated_at:null,version:null}])),link:{url:'',version:null},log:[]};
   const lines=list.map(a=>lineOf(a,saved.decisions)).sort((a,b)=>(b.requested??0)-(a.requested??0));
   let history=[];try{const past=all.filter(a=>a.unit_key===key&&a.year&&a.year<c.year);const ys=[...new Set(past.map(a=>a.year))].sort();
-   history=ys.map(y=>{const g=past.filter(a=>a.year===y),s=k=>g.reduce((t,a)=>t+(a[k]??0),0);return {year:y,requested:r0(s('requested')),provost:r0(s('provost')),school:r0(s('school')),unresolved:r0(s('unresolved')),declined:r0(s('declined')),approved:r0(s('provost')+s('school')+s('unresolved'))};});}catch{}
+   history=ys.map(y=>{const g=past.filter(a=>a.year===y),s=k=>g.reduce((t,a)=>t+(a[k]??0),0);return {year:y,requested:r0(s('requested')),provost:r0(s('provost')),school:r0(s('school')),scc:r0(s('scc')),sources:past.filter(a=>a.year===y).map(a=>({description:a.revised||a.original||a.request,source:a.source})).filter(a=>a.source?.sources?.length),unresolved:r0(s('unresolved')),declined:r0(s('declined')),approved:r0(s('provost')+s('school')+s('scc')+s('unresolved'))};});}catch{}
   let snapshot=null;if(info.has_wallet&&auth.features?.wallets!==false){try{snapshot=await reserveSnapshot(key,{reserves});}catch(e){console.error('Budget HQ reserves:',e.message);}}
   return reply(200,{cycle:c.cycle,year:c.year,unit:info,lines,totals:rollUp(lines),history,reserves:snapshot,storage_ready:ready,can_edit:canEdit,
    notes:{sections:saved.sections},note_sections:NOTE_SECTIONS,folder:saved.link,log:saved.log,generated_at:now().toISOString()});

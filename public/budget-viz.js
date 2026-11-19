@@ -1,7 +1,7 @@
 // Budget Explorer (comparison view). Reads the same Quickbase rows as the legacy explorer.
 // "Approved" = Provost (recurring + one-time) + School + historical allocations whose funder is unresolved.
 // Blank amounts stay blank: they are never counted as zero in medians or approval rates.
-import {mapRecord,groupForUnit} from './budget-model.mjs';
+import {mapRecord,groupForUnit,workbookSourceHtml} from './budget-model.mjs';
 
 const $=s=>document.querySelector(s);
 const root=$('#bv');
@@ -17,10 +17,11 @@ const MEASURES={
  approved:{label:'Approved (all funders)',get:t=>t.approved},
  provost:{label:'Provost approved',get:t=>t.provost},
  school:{label:'School (SoE) approved',get:t=>t.school},
+ scc:{label:'SCC approved',get:t=>t.scc},
  requested:{label:'Requested',get:t=>t.requested},
  declined:{label:'Declined',get:t=>t.declined}
 };
-const SEG=[['provost','Provost','#1f5a41'],['school','School (SoE)','#c39a2b'],['unresolved','Funder unresolved','#9fb5a6']];
+const SEG=[['provost','Provost','#1f5a41'],['school','School (SoE)','#c39a2b'],['scc','SCC','#750014'],['unresolved','Funder unresolved','#9fb5a6']];
 
 let records=[],units=[],years=[];
 const state={focus:'EECS',measure:'approved',peers:'academic',from:null,through:null,reqYear:null};
@@ -28,9 +29,9 @@ const state={focus:'EECS',measure:'approved',peers:'academic',from:null,through:
 // Sum one set of records; each component is null only if no row records it.
 function agg(rows){
  const pick=k=>{const v=rows.map(r=>r[k]).filter(x=>x!==null);return v.length?sum(v):null;};
- const provost=pick('provost'),school=pick('school'),unresolved=pick('unresolved'),requested=pick('requested'),declined=pick('declined');
- const parts=[provost,school,unresolved].filter(x=>x!==null);
- return {provost,school,unresolved,requested,declined,approved:parts.length?sum(parts):null,asks:rows.length};
+ const provost=pick('provost'),school=pick('school'),scc=pick('scc'),unresolved=pick('unresolved'),requested=pick('requested'),declined=pick('declined');
+ const parts=[provost,school,scc,unresolved].filter(x=>x!==null);
+ return {provost,school,scc,unresolved,requested,declined,approved:parts.length?sum(parts):null,asks:rows.length};
 }
 const inRange=r=>r.year>=state.from&&r.year<=state.through;
 const peerList=()=>units.filter(u=>state.peers==='all'||groupForUnit(u)==='Academic units');
@@ -100,7 +101,7 @@ function split(){
 }
 
 function categories(){
- const pick=rs=>{const m=new Map();for(const r of rs){const a=[r.provost,r.school,r.unresolved].filter(x=>x!==null);if(!a.length)continue;const k=r.category||'Uncategorized';m.set(k,(m.get(k)||0)+sum(a));}return m;};
+ const pick=rs=>{const m=new Map();for(const r of rs){const a=[r.provost,r.school,r.scc,r.unresolved].filter(x=>x!==null);if(!a.length)continue;const k=r.category||'Uncategorized';m.set(k,(m.get(k)||0)+sum(a));}return m;};
  const mine=pick(records.filter(r=>r.unit===state.focus&&inRange(r)));
  const peers=pick(records.filter(r=>r.unit!==state.focus&&inRange(r)&&peerList().includes(r.unit)));
  const mt=sum([...mine.values()]),pt=sum([...peers.values()]);
@@ -115,7 +116,7 @@ function requests(){
  select('#bv-req-year',[['all','All years in range'],...ys.slice().reverse().map(y=>[y,fy(y)])],state.reqYear);
  const rows=records.filter(r=>r.unit===state.focus&&inRange(r)&&(state.reqYear==='all'||r.year===Number(state.reqYear))).sort((a,b)=>b.year-a.year||(b.requested??0)-(a.requested??0));
  const t=agg(rows);
- $('#bv-requests').innerHTML=`<table class="bv-table"><thead><tr><th>FY</th><th>Request</th><th>Category</th><th class="n">Requested</th><th class="n">Provost</th><th class="n">School</th><th class="n">Unresolved</th><th class="n">Declined</th><th>Decision</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${fy(r.year)}</td><td>${esc(r.request)||'—'}</td><td>${esc(r.category)||'—'}</td><td class="n">${money(r.requested)}</td><td class="n">${money(r.provost)}</td><td class="n">${money(r.school)}</td><td class="n">${money(r.unresolved)}</td><td class="n">${money(r.declined)}${r.declinedIsInitial?'<sup title="Initial decision; no final decision recorded">i</sup>':''}</td><td>${esc(r.decision)||'—'}</td></tr>`).join('')||'<tr><td colspan="9" class="bv-empty">No requests recorded.</td></tr>'}</tbody><tfoot><tr><th colspan="3">${rows.length} asks</th><td class="n">${money(t.requested)}</td><td class="n">${money(t.provost)}</td><td class="n">${money(t.school)}</td><td class="n">${money(t.unresolved)}</td><td class="n">${money(t.declined)}</td><td></td></tr></tfoot></table>`;
+ $('#bv-requests').innerHTML=`<table class="bv-table"><thead><tr><th>FY</th><th>Request</th><th>Category</th><th class="n">Requested</th><th class="n">Provost</th><th class="n">School</th><th class="n">SCC</th><th class="n">Unresolved</th><th class="n">Declined</th><th>Decision</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${fy(r.year)}</td><td>${esc(r.request)||'—'}${workbookSourceHtml(r.source)}</td><td>${esc(r.category)||'—'}</td><td class="n">${money(r.requested)}</td><td class="n">${money(r.provost)}</td><td class="n">${money(r.school)}</td><td class="n">${money(r.scc)}</td><td class="n">${money(r.unresolved)}</td><td class="n">${money(r.declined)}${r.declinedIsInitial?'<sup title="Initial decision; no final decision recorded">i</sup>':''}</td><td>${esc(r.decision)||'—'}</td></tr>`).join('')||'<tr><td colspan="10" class="bv-empty">No requests recorded.</td></tr>'}</tbody><tfoot><tr><th colspan="3">${rows.length} asks</th><td class="n">${money(t.requested)}</td><td class="n">${money(t.provost)}</td><td class="n">${money(t.school)}</td><td class="n">${money(t.scc)}</td><td class="n">${money(t.unresolved)}</td><td class="n">${money(t.declined)}</td><td></td></tr></tfoot></table>`;
 }
 
 function render(){cache.clear();controls();kpis();matrix();history();split();categories();requests();}

@@ -1,3 +1,4 @@
+import {workbookSourceHtml} from '/budget-model.mjs';
 // SoE HQ → Budget: cycle roll-up and unit pages. Data: /.netlify/functions/budget-hq-data
 const $=s=>document.querySelector(s);
 const root=$('#bh'),view=root.dataset.view,cycle=root.dataset.cycle,unitKey=root.dataset.unit;
@@ -33,10 +34,11 @@ const legend=`<div class="bv-legend"><span><i style="background:${REQ}"></i>Requ
 function renderCycle(){
  const t=data.totals,list=data.units,max=Math.max(1,...list.map(u=>u.requested||0));
  $('#bh-content').innerHTML=`
- <div class="bv-kpis">${tile('Requested',short(t.requested),t.lines+' request lines')+tile('Supported so far',short(t.supported),t.supported_count+' supported · '+t.declined_count+' declined')+tile('SoE share',short(t.soe),t.supported?pct(t.soe/t.supported)+' of supported':'')+tile('Provost share',short(t.provost),t.pending+' lines still pending')}</div>
+ <div class="bv-kpis">${tile('Requested',money(t.requested),t.lines+' request lines'+(t.unpriced?' · '+t.unpriced+' amount not specified':''))+tile('Supported so far',short(t.supported),t.supported_count+' supported · '+t.declined_count+' declined')+tile('SoE share',short(t.soe),t.supported?pct(t.soe/t.supported)+' of supported':'')+tile('Provost share',short(t.provost),t.pending+' lines still pending')}</div>
+ ${t.source_workbooks?.length?`<p class="bv-status">Requests loaded from ${t.source_workbooks.map(esc).join(', ')}. Workbook allocations are proposals; HQ decisions are saved separately.</p>`:''}
  <section class="bv-panel"><div class="bh-head"><h2>Units</h2><a class="desktop" href="${API}?cycle=${cycle}&format=csv">Download all lines (CSV)</a></div>${legend}
  <div class="bv-scroll"><table class="bv-table bh-units"><thead><tr><th>Unit</th><th style="width:28%"></th><th class="n">Lines</th><th class="n">Requested</th><th class="n">Supported</th><th class="n">SoE</th><th class="n">Provost</th><th class="n">Declined</th><th class="n">Pending</th></tr></thead><tbody>
- ${list.map(u=>`<tr class="${u.lines?'':'bh-none'}"><td><a href="/soe-hq/budget/${cycle}/${encodeURIComponent(u.key)}">${esc(u.label)}</a>${u.has_wallet?'':' <span class="bh-tag">not mapped</span>'}</td><td>${u.lines?splitBar(u.requested,u.soe,u.provost,max):'<span class="bv-status">No requests</span>'}</td><td class="n">${u.lines}</td><td class="n">${short(u.requested)}</td><td class="n">${short(u.supported)}</td><td class="n">${short(u.soe)}</td><td class="n">${short(u.provost)}</td><td class="n">${short(u.declined_requested)}</td><td class="n">${u.pending?'<strong>'+u.pending+'</strong>':'0'}</td></tr>`).join('')}
+ ${list.map(u=>`<tr class="${u.lines?'':'bh-none'}"><td><a href="/soe-hq/budget/${cycle}/${encodeURIComponent(u.key)}">${esc(u.label)}</a>${u.has_wallet?'':' <span class="bh-tag">not mapped</span>'}</td><td>${u.lines?splitBar(u.requested,u.soe,u.provost,max):'<span class="bv-status">No requests</span>'}</td><td class="n">${u.lines}${u.unpriced?`<small> · ${u.unpriced} unpriced</small>`:''}</td><td class="n">${short(u.requested)}</td><td class="n">${short(u.supported)}</td><td class="n">${short(u.soe)}</td><td class="n">${short(u.provost)}</td><td class="n">${short(u.declined_requested)}</td><td class="n">${u.pending?'<strong>'+u.pending+'</strong>':'0'}</td></tr>`).join('')}
  <tr class="bh-total"><td>Total</td><td></td><td class="n">${t.lines}</td><td class="n">${short(t.requested)}</td><td class="n">${short(t.supported)}</td><td class="n">${short(t.soe)}</td><td class="n">${short(t.provost)}</td><td class="n">${short(t.declined_requested)}</td><td class="n">${t.pending}</td></tr></tbody></table></div>
  <p class="bv-status">Decisions are saved in QuickBase’s HQ Budget Decisions table, separate from the budget table’s approved fields. ${data.can_edit?'':'You have read-only access.'}</p></section>`;
 }
@@ -48,7 +50,7 @@ function renderUnit(){
  const prev=h[h.length-1],ry=r?.unit?.years?.[r.unit.years.length-1];
  $('#bh-content').innerHTML=`
  <div class="bh-head bh-noprint"><div class="bh-chips">${chip(t)}</div><button type="button" id="bh-print">Print briefing</button></div>
- <div class="bv-kpis">${tile(fy(data.year)+' request',short(t.requested),`${short(t.recurring)} recurring · ${short(t.onetime)} one-time`)
+ <div class="bv-kpis">${tile(fy(data.year)+' request',short(t.requested),`${short(t.recurring)} recurring · ${short(t.onetime)} one-time${t.unpriced?` · ${t.unpriced} amount not specified`:''}`)
   +tile('HQ support so far',short(t.supported),t.supported?`SoE ${short(t.soe)} · Provost ${short(t.provost)}`:t.pending+' lines pending')
   +tile(prev?fy(prev.year)+' approved':'Last approved',short(prev?.approved),prev?'of '+short(prev.requested)+' requested':'')
   +tile('3-year approval rate',pct(rate),last3.length?fy(last3[0].year)+'–'+fy(last3[last3.length-1].year):'')
@@ -74,10 +76,11 @@ function chip(t){const s=!t.lines?['none','No requests']:t.pending===t.lines?['o
 const LEVELS=[100,75,50,25];
 function lineRow(l){
  const edit=data.can_edit,sup=l.decision==='support',custom=sup&&!LEVELS.includes(l.support_pct);
- const desc=`<div class="bh-desc">${esc(l.description||'(no description)')}</div>${l.revised&&l.original&&l.revised!==l.original?`<details class="bh-noprint"><summary>Original request</summary>${esc(l.original)}</details>`:''}<div class="bv-status">${esc(l.category||'Uncategorised')}${l.qb_status?' · QuickBase status: '+esc(l.qb_status):''}</div>`;
+ const desc=`${l.requested===null?'<p class="bv-status error">Amount not specified — excluded from dollar totals.</p>':''}<div class="bh-desc">${esc(l.description||'(no description)')}</div>${l.revised&&l.original&&l.revised!==l.original?`<details class="bh-noprint"><summary>Original request</summary>${esc(l.original)}</details>`:''}<div class="bv-status">${esc(l.category||'Uncategorised')}${l.qb_status?' · QuickBase status: '+esc(l.qb_status):''}</div>`;
+ const sourceContext=workbookSourceHtml(l.source);
  const amounts=`<td class="n">${money(l.recurring)}</td><td class="n">${money(l.onetime)}</td><td class="n"><strong>${money(l.requested)}</strong></td>`;
  const result=`<td class="n" data-out="supported">${l.decision==='pending'?'—':money(l.supported)}</td><td class="n" data-out="soe">${sup?money(l.soe):'—'}</td><td class="n" data-out="provost">${sup?money(l.provost):'—'}</td>`;
- if(!edit)return `<tr class="bh-${l.decision}"><td>${desc}</td>${amounts}<td>${label(l)}${l.note?'<div class="bh-note">'+esc(l.note)+'</div>':''}</td>${result}</tr>`;
+ if(!edit)return `<tr class="bh-${l.decision}"><td>${desc}${sourceContext}</td>${amounts}<td>${label(l)}${l.note?'<div class="bh-note">'+esc(l.note)+'</div>':''}</td>${result}</tr>`;
  return `<tr class="bh-${l.decision}" data-id="${esc(l.record_id)}"><td>${desc}</td>${amounts}
  <td class="bh-edit"><span class="bh-printonly">${label(l)}${l.note?' — '+esc(l.note):''}</span><select data-f="decision" aria-label="Decision">${['pending','decline','support'].map(d=>`<option value="${d}"${l.decision===d?' selected':''}>${{pending:'Pending',decline:'Decline',support:'Support'}[d]}</option>`).join('')}</select>
   <span class="bh-sup"${sup?'':' hidden'}><label>Level <select data-f="level">${LEVELS.map(v=>`<option value="${v}"${sup&&l.support_pct===v?' selected':''}>${v}%</option>`).join('')}<option value="custom"${custom?' selected':''}>Other…</option></select></label>
@@ -114,15 +117,15 @@ async function save(tr){
  }catch(e){msg.textContent=e.message;msg.classList.add('error');}finally{btn.disabled=false;}
 }
 function recalc(ls){const s=k=>ls.reduce((a,l)=>a+(l[k]??0),0),c=d=>ls.filter(l=>l.decision===d).length;
- return {lines:ls.length,requested:s('requested'),recurring:s('recurring'),onetime:s('onetime'),supported:s('supported'),soe:s('soe'),provost:s('provost'),declined_requested:ls.filter(l=>l.decision==='decline').reduce((a,l)=>a+(l.requested??0),0),pending:c('pending'),supported_count:c('support'),declined_count:c('decline')};}
+ return {lines:ls.length,unpriced:ls.filter(l=>l.requested===null).length,source_workbooks:[...new Set(ls.flatMap(l=>l.source?.sources?.map(s=>s.workbook)||[]))],requested:ls.length&&ls.every(l=>l.requested===null)?null:s('requested'),recurring:s('recurring'),onetime:s('onetime'),supported:s('supported'),soe:s('soe'),provost:s('provost'),declined_requested:ls.filter(l=>l.decision==='decline').reduce((a,l)=>a+(l.requested??0),0),pending:c('pending'),supported_count:c('support'),declined_count:c('decline')};}
 
 function history(){
  const h=data.history;if(!h.length){$('#bh-history').innerHTML='<p class="bv-status">No earlier requests on record.</p>';return;}
  const W=520,H=200,L=52,B=26,T=10,iw=W-L-10,ih=H-T-B,max=Math.max(1,...h.map(y=>Math.max(y.requested||0,y.approved||0))),bw=iw/h.length;
  const Y=v=>T+ih-(v/max)*ih;let s=`<svg viewBox="0 0 ${W} ${H}" class="bh-svg" role="img" aria-label="Requested and approved by year">`;
  for(let i=0;i<=4;i++){const v=max*i/4;s+=`<line x1="${L}" x2="${W-10}" y1="${Y(v)}" y2="${Y(v)}" class="rv-grid"/><text x="${L-6}" y="${Y(v)+4}" class="rv-tick" text-anchor="end">${short(v)}</text>`;}
- h.forEach((y,i)=>{const x=L+i*bw;s+=`<g><title>${fy(y.year)}: requested ${money(y.requested)}, approved ${money(y.approved)} (Provost ${money(y.provost)}, SoE ${money(y.school)})</title><rect x="${x+bw*.12}" y="${Y(y.requested||0)}" width="${bw*.36}" height="${ih-(Y(y.requested||0)-T)}" fill="${REQ}" rx="2"/><rect x="${x+bw*.5}" y="${Y(y.approved||0)}" width="${bw*.36}" height="${ih-(Y(y.approved||0)-T)}" fill="${SOE}" rx="2"/><text x="${x+bw/2}" y="${H-8}" class="rv-tick" text-anchor="middle">${fy(y.year)}</text></g>`;});
- $('#bh-history').innerHTML=`<div class="bv-legend"><span><i style="background:${REQ}"></i>Requested</span><span><i style="background:${SOE}"></i>Approved (Provost + SoE)</span></div>`+s+'</svg>';
+ h.forEach((y,i)=>{const x=L+i*bw;s+=`<g><title>${fy(y.year)}: requested ${money(y.requested)}, approved ${money(y.approved)} (Provost ${money(y.provost)}, SoE ${money(y.school)}, SCC ${money(y.scc)})</title><rect x="${x+bw*.12}" y="${Y(y.requested||0)}" width="${bw*.36}" height="${ih-(Y(y.requested||0)-T)}" fill="${REQ}" rx="2"/><rect x="${x+bw*.5}" y="${Y(y.approved||0)}" width="${bw*.36}" height="${ih-(Y(y.approved||0)-T)}" fill="${SOE}" rx="2"/><text x="${x+bw/2}" y="${H-8}" class="rv-tick" text-anchor="middle">${fy(y.year)}</text></g>`;});
+ $('#bh-history').innerHTML=`<div class="bv-legend"><span><i style="background:${REQ}"></i>Requested</span><span><i style="background:${SOE}"></i>Approved (all recorded funders)</span></div>`+s+'</svg>'+h.map(y=>y.sources?.length?`<details><summary>${fy(y.year)} request source notes</summary>${y.sources.map(a=>`<p><strong>${esc(a.description)}</strong></p>${workbookSourceHtml(a.source)}`).join('')}</details>`:'').join('');
 }
 function position(){
  const r=data.reserves;if(!r){$('#bh-position').innerHTML=`<p class="bv-status">${data.unit.has_wallet?'Reserve data is not available for this unit.':'This request group is not mapped to a site unit with a wallet.'}</p>`;return;}

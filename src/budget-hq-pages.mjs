@@ -25,7 +25,7 @@ export function createBudgetHqPageHandler(authorize=access.authorize){return asy
  if(!c){
   title='Budget';back='/soe-hq';backLabel='SoE HQ';
   body=CYCLES.map(k=>card(k.toUpperCase()+' budget cycle','Every unit’s requests, HQ decisions (decline or support level, SoE / Provost split), and a page per unit for the Dean’s budget meetings.','/soe-hq/budget/'+k))
-   +(result.admin?card('Workbook sources & needs','Working requests, funding decisions, distributions and source-account notes from dated workbook snapshots.','/soe-hq/budget-sources')+card('Budget Explorer','Compare what each unit asked for and received across fiscal years, who funded it, and how requests break down.','/soe-hq/budget-explorer')+card('Reserves vs. spending','Months of discretionary reserve by unit, whether it is growing, GIB use and FY requests.','/soe-hq/reserves'):'')
+   +(result.admin?card('Budget Explorer','Compare what each unit asked for and received across fiscal years, who funded it, and how requests break down.','/soe-hq/budget-explorer')+card('Reserves vs. spending','Months of discretionary reserve by unit, whether it is growing, GIB use and FY requests.','/soe-hq/reserves'):'')
    +card('Budget Submissions','Budget submission materials by fiscal year.','/soe-hq/budget-submissions')
    +(result.admin?card('Budget Explorer (legacy)','The original budget explorer.','/soe-hq/budget-explorer-legacy'):'');
  }else if(!unit){
