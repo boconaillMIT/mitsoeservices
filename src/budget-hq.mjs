@@ -42,6 +42,18 @@ export function validateDecision(input){
  return {value:{decision:d,support_pct:sp,soe_pct:soe,note}};
 }
 const r0=v=>v===null||!Number.isFinite(v)?null:Math.round(v);
+export function recentBudgetOutcomes(all,key,year){
+ const sum=(rows,field)=>{const values=rows.map(r=>r[field]).filter(Number.isFinite);return values.length?r0(values.reduce((a,b)=>a+b,0)):null;};
+ const funding=r=>{const values=['school','provost','scc','unresolved'].map(k=>r[k]).filter(Number.isFinite);return values.length?values.reduce((a,b)=>a+b,0):null;};
+ return [year-2,year-1].map(year=>{
+  const rows=all.filter(r=>r.unit_key===key&&r.year===year),requested=sum(rows,'requested'),school=sum(rows,'school');
+  const known=rows.map(funding).filter(Number.isFinite),approved=known.length?r0(known.reduce((a,b)=>a+b,0)):null;
+  const finalDeclines=rows.filter(r=>!r.declinedIsInitial),declined=sum(finalDeclines,'declined');
+  const complete=rows.length>0&&rows.every(r=>Number.isFinite(r.requested)&&(funding(r)!==null||(!r.declinedIsInitial&&Number.isFinite(r.declined)))&&((funding(r)??0)+(r.declinedIsInitial?0:r.declined??0)>=r.requested));
+  const outcome=!rows.length?'No record':!complete?'Outcome incomplete':approved>=requested?'Fully funded':approved>0?'Partially funded':'Not funded';
+  return {year,lines:rows.length,requested,school,approved,declined,outcome,complete,unpriced:rows.filter(r=>!Number.isFinite(r.requested)).length};
+ });
+}
 export function applyDecision(ask,dec){
  const requested=ask.requested,d=dec||{decision:'pending'};
  if(d.decision!=='support')return {decision:d.decision,support_pct:d.decision==='decline'?0:null,soe_pct:null,provost_pct:null,supported:d.decision==='decline'?0:null,soe:d.decision==='decline'?0:null,provost:d.decision==='decline'?0:null,supported_recurring:null,supported_onetime:null,note:d.note||'',updated_by:d.updated_by||null,updated_at:d.updated_at||null};
@@ -130,7 +142,7 @@ export function createBudgetHqDataHandler({authorize=access.authorize,asks=loadA
   let history=[];try{const past=all.filter(a=>a.unit_key===key&&a.year&&a.year<c.year);const ys=[...new Set(past.map(a=>a.year))].sort();
    history=ys.map(y=>{const g=past.filter(a=>a.year===y),s=k=>g.reduce((t,a)=>t+(a[k]??0),0);return {year:y,requested:r0(s('requested')),provost:r0(s('provost')),school:r0(s('school')),scc:r0(s('scc')),sources:past.filter(a=>a.year===y).map(a=>({description:a.revised||a.original||a.request,source:a.source})).filter(a=>a.source?.sources?.length),unresolved:r0(s('unresolved')),declined:r0(s('declined')),approved:r0(s('provost')+s('school')+s('scc')+s('unresolved'))};});}catch{}
   let snapshot=null;if(info.has_wallet&&auth.features?.wallets!==false){try{snapshot=await reserveSnapshot(key,{reserves});}catch(e){console.error('Budget HQ reserves:',e.message);}}
-  return reply(200,{cycle:c.cycle,year:c.year,unit:info,lines,totals:rollUp(lines),history,reserves:snapshot,storage_ready:ready,can_edit:canEdit,
+  return reply(200,{cycle:c.cycle,year:c.year,unit:info,lines,totals:rollUp(lines),history,recent_budget_outcomes:recentBudgetOutcomes(all,key,c.year),reserves:snapshot,storage_ready:ready,can_edit:canEdit,
    notes:{sections:saved.sections},note_sections:NOTE_SECTIONS,folder:saved.link,log:saved.log,generated_at:now().toISOString()});
  }
  const decided=ready?await store.cycleDecisions(c.cycle):{};

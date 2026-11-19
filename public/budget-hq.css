@@ -23,6 +23,7 @@ tr.bh-support td:first-child{box-shadow:inset 3px 0 0 #2f6f5a}tr.bh-decline td:f
 .bh-sections{grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr))}
 .bh-section h3{font-size:14px;margin:0 0 6px;color:#173d31}.bh-section textarea{width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:6px 8px;resize:vertical;margin-bottom:4px}
 .bh-section textarea.bh-dirty{background:#fffbea}.bh-rich{font-size:13.5px;line-height:1.55}.bh-rich p{margin:0 0 6px}.bh-rich ul{margin:0 0 6px;padding-left:18px}
+.bh-section{min-width:0;overflow-wrap:anywhere}.bh-section textarea{overflow:hidden;resize:none;min-height:80px}.bh-section [hidden]{display:none!important}.bh-rich{max-height:none;overflow:visible}.bh-outcome-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px;margin-bottom:20px}.bh-outcome{padding:14px;background:#f7f7f7;border-left:3px solid #750014;min-width:0;overflow-wrap:anywhere}.bh-outcome h4{margin:0 0 10px}.bh-outcome dl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px 12px;margin:0}.bh-outcome dd{margin:0;text-align:right;font-weight:600}.bh-recent h3{font-size:15px}.bh-outcome p{margin-bottom:0}
 .bh-upload{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}.bh-upload input[type=url],.bh-upload input[type=text]{font:inherit;font-size:12.5px;padding:4px 8px;min-width:260px}.bh-upload button{font-size:12px;padding:4px 12px;min-height:0}
 @media print{.bh-brief{break-inside:auto}.bh-sections{grid-template-columns:1fr 1fr}}
 

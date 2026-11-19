@@ -53,7 +53,7 @@ function renderUnit(){
   +(r?tile('GIB used',pct(ry?.gib_use_rate),ry?fy(ry.year):''):'')
   +(r?tile('Open commitments',short(r.unit.open_commitments),(r.unit.open_commitment_count??0)+' commitments'):'')}</div>
  ${data.storage_ready?'':'<p class="bv-status error bh-noprint">HQ decisions, the briefing and the documents link are read-only until the QuickBase tables are connected.</p>'}
- <section class="bv-panel bh-brief"><div class="bh-head"><h2>Dean’s briefing</h2><span class="bv-status bh-noprint">${data.can_edit?'Lines starting with “- ” become bullet points. Each section saves on its own.':'Prepared by SoE HQ.'}</span></div><div id="bh-notes"></div></section>
+ <section class="bv-panel bh-brief"><div class="bh-head"><h2>Dean’s briefing</h2><span class="bv-status bh-noprint">${data.can_edit?'Use Edit to update a section; each section saves on its own.':'Prepared by SoE HQ.'}</span></div>${recentOutcomes()}<div id="bh-notes"></div></section>
  <section class="bv-panel"><h2>${fy(data.year)} requests and HQ decisions</h2>${data.can_edit?'<p class="bv-status bh-noprint">Set each line to decline or support. Support level is the share of the request supported. SoE share is the part the School funds, and the rest goes to the Provost as cost share. Save each line.</p>':'<p class="bv-status">Read-only.</p>'}
   <div class="bv-scroll" id="bh-lines"></div></section>
  <div class="bh-two">
@@ -150,21 +150,25 @@ function audit(){
 }
 
 // ---------- Dean's briefing ----------
+function recentOutcomes(){return `<div class="bh-recent"><h3>Previous two years: asks and funding outcomes</h3><p class="bv-status">Recorded historical funding, separate from current HQ recommendations. Blank amounts are not treated as zero or as an unsuccessful request.</p><div class="bh-outcome-grid">${(data.recent_budget_outcomes||[]).map(y=>`<article class="bh-outcome"><h4>${fy(y.year)} · ${esc(y.outcome)}</h4>${y.lines?`<dl><dt>Asked, all funders</dt><dd>${money(y.requested)}${y.unpriced?' + unpriced lines':''}</dd><dt>Dean / SoE funding recorded</dt><dd>${money(y.school)}</dd><dt>Total funding recorded</dt><dd>${money(y.approved)}</dd><dt>Final declined amount recorded</dt><dd>${money(y.declined)}</dd></dl><p class="bv-status">${y.lines} request lines${!y.complete?' · Full outcome not established by the recorded amounts.':''}</p>`:'<p>No request or funding outcome recorded for this year.</p>'}</article>`).join('')}</div></div>`;}
+function inlineRich(text){return esc(text).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');}
 function rich(text){if(!text.trim())return '<p class="bv-status">Nothing written yet.</p>';const out=[];let list=null;
  for(const raw of text.split('\n')){const line=raw.trimEnd(),m=/^\s*[-*•]\s+(.*)$/.exec(line);
   if(m){if(!list){list=[];out.push(list);}list.push(m[1]);continue;}list=null;if(line.trim())out.push(line);else out.push('');}
- return out.map(x=>Array.isArray(x)?'<ul>'+x.map(i=>'<li>'+esc(i)+'</li>').join('')+'</ul>':x?'<p>'+esc(x)+'</p>':'').join('');}
+ return out.map(x=>Array.isArray(x)?'<ul>'+x.map(i=>'<li>'+inlineRich(i)+'</li>').join('')+'</ul>':x?'<p>'+inlineRich(x)+'</p>':'').join('');}
 function notes(){
  const n=data.notes,secs=data.note_sections;
  $('#bh-notes').innerHTML=`<div class="bh-sections">${Object.entries(secs).map(([k,title])=>{const sec=n.sections[k],when=sec.updated_by?`${esc(sec.updated_by)} · ${new Date(sec.updated_at).toLocaleString()}`:'';
-  return `<div class="bh-section" data-section="${k}"><h3>${title}</h3>${data.can_edit?`<div class="bh-noprint"><textarea rows="5" maxlength="10000" data-note="${k}" aria-label="${title}">${esc(sec.text)}</textarea><div class="bh-save"><button type="button" data-note-save="${k}">Save</button><span class="bv-status" data-note-msg="${k}">${when?'Saved by '+when:''}</span></div></div><div class="bh-printonly bh-rich">${rich(sec.text)}</div>`:`<div class="bh-rich">${rich(sec.text)}</div>${when?`<p class="bv-status">Updated by ${when}</p>`:''}`}</div>`;}).join('')}</div>`;
+  return `<div class="bh-section" data-section="${k}"><h3>${title}</h3><div class="bh-rich" data-note-view="${k}">${rich(sec.text)}</div>${data.can_edit?`<button type="button" class="bh-noprint" data-note-edit="${k}" aria-expanded="false">Edit ${esc(title)}</button><div class="bh-noprint" data-note-editor="${k}" hidden><textarea rows="1" maxlength="10000" data-note="${k}" aria-label="${title}">${esc(sec.text)}</textarea><div class="bh-save"><button type="button" data-note-save="${k}">Save</button><span class="bv-status" data-note-msg="${k}">${when?'Saved by '+when:''}</span></div></div>`:when?`<p class="bv-status">Updated by ${when}</p>`:''}</div>`;}).join('')}</div>`;
 }
+function growNote(ta){ta.style.height='auto';ta.style.height=(ta.scrollHeight+2)+'px';}
+function editNote(k){const editor=document.querySelector(`[data-note-editor="${k}"]`),ta=editor.querySelector('textarea');editor.hidden=false;document.querySelector(`[data-note-view="${k}"]`).hidden=true;const button=document.querySelector(`[data-note-edit="${k}"]`);button.hidden=true;button.setAttribute('aria-expanded','true');growNote(ta);ta.focus();}
 async function saveNote(k){
  const ta=document.querySelector(`[data-note="${k}"]`),msg=document.querySelector(`[data-note-msg="${k}"]`),btn=document.querySelector(`[data-note-save="${k}"]`);
  btn.disabled=true;msg.classList.remove('error');msg.textContent='Saving…';
  try{const j=await send('PUT',{action:'notes',section:k,text:ta.value,version:data.notes.sections[k].version});data.notes.sections[k]=j.section;ta.classList.remove('bh-dirty');logLocal('briefing',data.note_sections[k],'Edited ('+j.section.text.length+' characters)');audit();
   const sec=j.section;msg.textContent='Saved by '+sec.updated_by+' · '+new Date(sec.updated_at).toLocaleString();
-  document.querySelector(`[data-section="${k}"] .bh-printonly`).innerHTML=rich(sec.text);}
+  const view=document.querySelector(`[data-note-view="${k}"]`);view.innerHTML=rich(sec.text);view.hidden=false;document.querySelector(`[data-note-editor="${k}"]`).hidden=true;const edit=document.querySelector(`[data-note-edit="${k}"]`);edit.hidden=false;edit.setAttribute('aria-expanded','false');}
  catch(e){msg.textContent=e.message;msg.classList.add('error');}finally{btn.disabled=false;}
 }
 // ---------- documents folder (MIT Google Shared Drive) ----------
@@ -186,7 +190,8 @@ async function send(method,payload){
 
 document.addEventListener('change',e=>{const tr=e.target.closest('tr[data-id]');if(tr&&e.target.dataset.f)preview(tr);});
 document.addEventListener('input',e=>{const tr=e.target.closest('tr[data-id]');if(tr&&['custom','soe','note'].includes(e.target.dataset.f))preview(tr);});
-document.addEventListener('click',e=>{const b=e.target.closest('[data-save]');if(b){save(b.closest('tr'));return;}const n=e.target.closest('[data-note-save]');if(n){saveNote(n.dataset.noteSave);return;}});
-document.addEventListener('input',e=>{if(e.target.dataset?.note){e.target.classList.add('bh-dirty');const m=document.querySelector(`[data-note-msg="${e.target.dataset.note}"]`);if(m)m.textContent='Unsaved changes';}});
+document.addEventListener('click',e=>{const edit=e.target.closest('[data-note-edit]');if(edit){editNote(edit.dataset.noteEdit);return;}const b=e.target.closest('[data-save]');if(b){save(b.closest('tr'));return;}const n=e.target.closest('[data-note-save]');if(n){saveNote(n.dataset.noteSave);return;}});
+document.addEventListener('input',e=>{if(e.target.dataset?.note){growNote(e.target);e.target.classList.add('bh-dirty');const m=document.querySelector(`[data-note-msg="${e.target.dataset.note}"]`);if(m)m.textContent='Unsaved changes';}});
+window.addEventListener('resize',()=>document.querySelectorAll('[data-note-editor]:not([hidden]) textarea').forEach(growNote));
 window.addEventListener('beforeunload',e=>{if(document.querySelector('.bh-dirty')){e.preventDefault();e.returnValue='';}});
 load();
