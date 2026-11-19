@@ -1,11 +1,12 @@
 import {unzipSync,zipSync,strFromU8,strToU8} from 'fflate';
-import {FUNDING,fundingSummary} from './rct-model.mjs';
+import {FUNDING,fundingSummary,sortProposals,validateReview} from './rct-model.mjs';
 const xml=v=>String(v).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const cols='ABCDEFGHIJKLMNOPQRSTUV'.split('');
 // Retain the provided workbook's styles and table, replacing external links with
 // source values and local, editable funding formulas. Unset amounts remain blank.
 export function exportReviews(template,records){
  if(!records.length||records.length>200)throw Error('Invalid proposal count.');
+ records=sortProposals(records).map(r=>({...r,review:validateReview(r.review)}));
  const zip=unzipSync(new Uint8Array(template)),sheetPath='xl/worksheets/sheet1.xml';
  let sheet=strFromU8(zip[sheetPath]);const originalRows=[...sheet.matchAll(/<row\b[^>]*\br="(\d+)"[^>]*>[\s\S]*?<\/row>/g)],rowTemplate=originalRows.find(r=>r[1]==='8')?.[0],totals=originalRows.find(r=>r[1]==='18')?.[0];if(!rowTemplate||!totals)throw Error('Unexpected review template.');
  const styleOf=(row,col)=>new RegExp(`<c\\b[^>]*r="${col}\\d+"[^>]*\\bs="(\\d+)"`).exec(row)?.[1];
@@ -39,5 +40,37 @@ export function exportReviews(template,records){
  zip['xl/_rels/workbook.xml.rels']=strToU8(strFromU8(zip['xl/_rels/workbook.xml.rels']).replace(/<Relationship\b[^>]*Type="[^"]*\/(externalLink|calcChain)"[^>]*\/>/g,''));
  zip['[Content_Types].xml']=strToU8(strFromU8(zip['[Content_Types].xml']).replace(/<Override\b[^>]*PartName="\/xl\/(externalLinks\/[^"\s]+|calcChain.xml)"[^>]*\/>/g,''));
  for(const name of Object.keys(zip))if(name.startsWith('xl/externalLinks/')||name==='xl/calcChain.xml')delete zip[name];
+ addReviewDetails(zip,records);
  return Buffer.from(zipSync(zip));
+}
+
+function addReviewDetails(zip,records){
+ const workbook=strFromU8(zip['xl/workbook.xml']),rels=strFromU8(zip['xl/_rels/workbook.xml.rels']);
+ const sheetId=Math.max(0,...[...workbook.matchAll(/sheetId="(\d+)"/g)].map(m=>Number(m[1])))+1;
+ const relId='rId'+(Math.max(0,...[...rels.matchAll(/Id="rId(\d+)"/g)].map(m=>Number(m[1])))+1);
+ const sheetPath='xl/worksheets/rct-review-details.xml';
+ const styles=addDetailStyles(zip);
+ const headers=['PI','Department','Overall priority (1 highest)','Graduate-student funding',...Array.from({length:6},(_,i)=>['Reviewer '+(i+1),'Grade (1–5)','Comments']).flat(),'Final proposal version','Earlier notes'];
+ const column=i=>String.fromCharCode(65+i);
+ const cell=(c,r,v)=>v===null||v===undefined?`<c r="${c}${r}" s="${r===1?styles.header:styles.body}"/>`:typeof v==='number'?`<c r="${c}${r}" s="${r===1?styles.header:styles.body}"><v>${v}</v></c>`:`<c r="${c}${r}" s="${r===1?styles.header:styles.body}" t="inlineStr"><is><t xml:space="preserve">${xml(v)}</t></is></c>`;
+ const rows=[headers,...records.map(({source:s,review:r,finalVersionLabel})=>[s.pi,s.department,r.priority,r.gradStudents===null?'Unknown':r.gradStudents?'Yes':'No',...r.reviewers.flatMap(v=>[v.name,v.grade?Number(v.grade):null,v.comments]),finalVersionLabel||r.finalVersion||'Not selected',r.notesHistory.map(n=>n.by+' · '+n.at+'\n'+n.text).join('\n\n')])];
+ const contents=rows.map((values,i)=>`<row r="${i+1}" ht="${i?100:40}" customHeight="1">${values.map((v,j)=>cell(column(j),i+1,v)).join('')}</row>`).join('');
+ zip[sheetPath]=strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:X${rows.length}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="2" width="32" customWidth="1"/><col min="3" max="4" width="22" customWidth="1"/>${Array.from({length:6},(_,i)=>`<col min="${5+3*i}" max="${5+3*i}" width="22" customWidth="1"/><col min="${6+3*i}" max="${6+3*i}" width="12" customWidth="1"/><col min="${7+3*i}" max="${7+3*i}" width="45" customWidth="1"/>`).join('')}<col min="23" max="24" width="45" customWidth="1"/></cols><sheetData>${contents}</sheetData><autoFilter ref="A1:X${rows.length}"/></worksheet>`);
+ zip['xl/workbook.xml']=strToU8(workbook.replace('</sheets>',`<sheet name="Review details" sheetId="${sheetId}" r:id="${relId}"/></sheets>`));
+ zip['xl/_rels/workbook.xml.rels']=strToU8(rels.replace('</Relationships>',`<Relationship Id="${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/rct-review-details.xml"/></Relationships>`));
+ zip['[Content_Types].xml']=strToU8(strFromU8(zip['[Content_Types].xml']).replace('</Types>','<Override PartName="/xl/worksheets/rct-review-details.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'));
+}
+
+function addDetailStyles(zip){
+ let styles=strFromU8(zip['xl/styles.xml']);
+ const count=tag=>Number(new RegExp('<'+tag+'\\b[^>]*count="(\\d+)"').exec(styles)?.[1]);
+ const font=count('fonts'),fill=count('fills'),body=count('cellXfs');
+ // Minimal test templates need not provide a stylesheet; real source templates do.
+ if(![font,fill,body].every(Number.isInteger))return {header:0,body:0};
+ const append=(tag,content)=>{styles=styles.replace(new RegExp('(<'+tag+'\\b[^>]*count=")(\\d+)("[^>]*>)([\\s\\S]*?)(</'+tag+'>)'),(_,a,n,b,c,d)=>a+(Number(n)+1)+b+c+content+d);};
+ append('fonts','<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>');
+ append('fills','<fill><patternFill patternType="solid"><fgColor rgb="FF750014"/><bgColor indexed="64"/></patternFill></fill>');
+ append('cellXfs','<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>');
+ append('cellXfs',`<xf numFmtId="0" fontId="${font}" fillId="${fill}" borderId="0" xfId="0" applyAlignment="1" applyFont="1" applyFill="1"><alignment vertical="top" wrapText="1"/></xf>`);
+ zip['xl/styles.xml']=strToU8(styles);return {body,header:body+1};
 }

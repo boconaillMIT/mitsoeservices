@@ -10,7 +10,7 @@ export function reviewAccess(data,scope){
  return [...new Set(data.grants.map(g=>g.username))].sort().flatMap(username=>{
   const full=policy.effectiveRole(data,username,scope,'full'),limited=policy.effectiveRole(data,username,scope,'limited');
   if(!limited)return [];
-  return [{username,scope,role:policy.roleLabels(scope)[limited],full:full?policy.roleLabels(scope)[full]:'No access',limited:policy.roleLabels(scope)[limited],inherited:data.grants.some(g=>g.username===username&&g.scope==='school')}];
+  return [{username,scope,role:policy.roleLabels(scope)[limited],full:full?policy.roleLabels(scope)[full]:'No access',limited:policy.roleLabels(scope)[limited],inherited:data.grants.some(g=>g.username===username&&g.scope==='school'&&(scope!=='rct'||g.role==='admin'))}];
  });
 }
 export function createSecurityReviewHandler({authorize=access.authorize,files=readFileReview,visibility=()=>flags.loadFlags(),now=()=>new Date()}={}){return async event=>{
@@ -28,8 +28,8 @@ export function createSecurityReviewHandler({authorize=access.authorize,files=re
  const scope=event.queryStringParameters?.scope||'all';
  if(scope!=='all'&&!Object.hasOwn(policy.SCOPES,scope))return reply(400,{error:'Choose a valid school or unit.'});
  try{
-  const data=auth.policy.data,[documents,visible]=await Promise.all([files({scopes:scope==='all'||scope==='school'?Object.keys(units.ALL_UNITS):[scope]}),visibility()]);
-  const relevant=a=>scope==='all'||a.scope===scope||a.scope==='school';
+  const data=auth.policy.data,[documents,visible]=await Promise.all([files({scopes:scope==='all'||scope==='school'?Object.keys(units.ALL_UNITS):scope==='rct'?[]:[scope]}),visibility()]);
+  const relevant=a=>scope==='all'||a.scope===scope||a.scope==='school'&&(scope!=='rct'||a.role==='admin'||a.previous_role==='admin');
   return reply(200,{checked_at:now().toISOString(),scope,scopes:policy.SCOPES,access:reviewAccess(data,scope),permissions:data.audit.filter(relevant).slice(-200).sort(byDate),files:documents,visibility:visible.data.audit.slice(0,100),coverage:{permission_events_retained:200,document_changes_per_file:20,visibility_events_retained:100}});
  }catch{return reply(503,{error:'The security review could not be fully verified. No incomplete review or other unit data was substituted.'});}
 };}
