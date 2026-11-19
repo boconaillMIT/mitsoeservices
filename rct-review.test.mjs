@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {zipSync,unzipSync,strToU8,strFromU8} from 'fflate';
-import {emptyReview,validateReview,fundingSummary} from './src/rct-model.mjs';
+import {emptyReview,validateReview,fundingSummary,commitmentView,decisionState} from './src/rct-model.mjs';
 import {createRctHandler} from './src/rct-review.mjs';import {createRctStore} from './src/rct-store.mjs';
 import {exportReviews} from './src/rct-export.mjs';import {dropboxLink,loadDropboxTemplate} from './src/rct-dropbox.mjs';import {createHash} from 'node:crypto';
 import access from './src/access.cjs';import policy from './src/policy.cjs';import {mainNavigation} from './src/navigation.cjs';
@@ -15,6 +15,21 @@ test('RCT money inputs preserve blanks and zero and reject invalid values',()=>{
  assert.deepEqual(fundingSummary(emptyReview()),{assigned:null,local:null,central:null,unallocated:null,complete:false});
  const r={...emptyReview(),award:100,school:20,department:10,pi:5,provost:60,vpr:5,decision:'Support'};assert.deepEqual(fundingSummary(r),{assigned:100,local:35,central:65,unallocated:0,complete:true});
  assert.equal(fundingSummary({...r,award:105}).complete,false);assert.equal(fundingSummary({...emptyReview(),award:0,decision:'Decline'}).complete,true);
+});
+test('RCT commitment views include only support decisions and reconcile every funding source',()=>{
+ const r=(id,area,department,review)=>({...row(),id,source:{...source,pi:id,area,department},review:{...emptyReview(),...review}});
+ const rows=[r('A','School A','Department A',{decision:'Support',award:100,school:20,department:10,pi:5,provost:50,evpt:10,vpr:5}),r('B','School A','Department B',{decision:'Partial support',award:50,school:10,department:0,pi:0,provost:30,evpt:0,vpr:10}),r('C','Joint schools','Joint departments',{decision:'Discuss',award:1000,school:900}),r('D','School B','Department D',{decision:'Decline',award:0})];
+ const view=commitmentView(rows);assert.equal(view.selected,2);assert.equal(view.excluded,2);for(const [key,value]of Object.entries({award:150,school:30,department:10,pi:5,provost:80,evpt:10,vpr:15,assigned:150,unallocated:0}))assert.equal(view.total.amounts[key].total,value,key);
+ const schools=commitmentView(rows,{groupBy:'school'});assert.equal(schools.rows.length,1);assert.equal(schools.rows[0].label,'School A');assert.equal(schools.rows[0].amounts.award.total,150);
+ const departments=commitmentView(rows,{groupBy:'department'});assert.equal(departments.rows.length,2);assert.equal(departments.rows.reduce((n,g)=>n+g.amounts.award.total,0),150);
+ assert.equal(commitmentView(rows,{scope:'all',groupBy:'school'}).selected,4);assert.equal(commitmentView(rows,{scope:'undecided'}).rows[0].label,'C');assert.equal(commitmentView(rows,{scope:'declined'}).total.amounts.award.total,0);
+ for(const d of ['','Discuss','Do not support','support with conditions'])assert.equal(decisionState(d),'undecided');assert.equal(decisionState(' Partial support '),'supported');assert.equal(fundingSummary(rows[2].review).complete,false);
+ assert.throws(()=>commitmentView(rows,{scope:'bad'}));
+});
+test('RCT commitment totals retain missing versus zero and never double-count joint affiliations',()=>{
+ const rows=[{...row(),id:'A',source:{...source,area:'Joint A / B'},review:{...emptyReview(),decision:'Support',award:0,school:0}},{...row(),id:'B',source:{...source,area:'Joint A / B'},review:{...emptyReview(),decision:'Support'}}];
+ const view=commitmentView(rows,{groupBy:'school'});assert.equal(view.rows.length,1);assert.equal(view.total.count,2);assert.deepEqual(view.total.amounts.school,{total:0,entered:1,count:2});assert.deepEqual(view.total.amounts.vpr,{total:null,entered:0,count:2});assert.deepEqual(view.total.amounts.award,{total:0,entered:1,count:2});
+ const none=commitmentView(rows.map(r=>({...r,review:{...r.review,decision:''}})));assert.equal(none.selected,0);assert.equal(none.total.amounts.award.total,null);
 });
 test('RCT school permissions protect pages, data, PDF, export and writes',async()=>{
  const data=policy.initialPolicy();for(const [username,scope,role]of [['unit_person','aeroastro','admin'],['hq_limited','school','limited_read'],['hq_reader','school','read'],['hq_writer','school','write']])data.grants.push({username,scope,role});
