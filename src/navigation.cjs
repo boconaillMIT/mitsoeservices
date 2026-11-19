@@ -2,7 +2,7 @@ function mainNavigation({manage=false,schoolAdmin=false,schoolAccess=schoolAdmin
  const links=[['home','/?home=1','Services Home']];
  if(!visibility.compactUnits&&(visibility.academic??schoolAccess))links.push(['academic','/academic-units','Academic units']);
  if(!visibility.compactUnits&&(visibility.other??schoolAccess))links.push(['other','/other-units','Other units']);
- if(schoolAccess)links.push(['hq','/soe-hq','SoE HQ'],['budget','/soe-hq/budget','Budget','hq'],['budget-fy28','/soe-hq/budget/fy28','FY28 budget cycle','hq-2']);
+ if(schoolAccess)links.push(['hq','/soe-hq','SoE HQ'],['budget','/soe-hq/budget','Budget','hq'],['budget-fy28','/soe-hq/budget/fy28','FY28 budget cycle','hq-2'],['rct-review','/soe-hq/rct-review','RCT review','hq']);
  if(schoolAdmin&&visibility.features?.nimbus!==false)links.push(['nimbus','/nimbus','Nimbus Search (under construction)']);
  if(schoolAccess){links.push(['settings','/settings','Settings']);if(manage)links.push(['settings-admin','/settings/manage-access','Manage access',true]);links.push(['automatic-reports','/settings/automatic-reports','Automatic reports',true]);}
  if(schoolAdmin)links.push(['visibility','/settings/visibility','Resource visibility',true],['security-review','/settings/security-review','Security review',true]);

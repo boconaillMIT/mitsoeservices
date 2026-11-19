@@ -287,6 +287,18 @@
   force = true
 
 [[redirects]]
+  from = "/soe-hq/rct-review"
+  to = "/.netlify/functions/rct-review"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/soe-hq/rct-review/:action"
+  to = "/.netlify/functions/rct-review?action=:action"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/soe-hq/balance-sheet"
   to = "/.netlify/functions/service-hub?page=/soe-hq/balance-sheet"
   status = 200
