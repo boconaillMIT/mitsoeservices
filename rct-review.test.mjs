@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {zipSync,unzipSync,strToU8,strFromU8} from 'fflate';
-import {emptyReview,validateReview,fundingSummary,commitmentView,decisionState,centralThirds,sortProposals,departmentInfo} from './src/rct-model.mjs';
+import {emptyReview,validateReview,fundingSummary,commitmentView,decisionState,centralThirds,fundingReview,fundingTotal,sortProposals,departmentInfo} from './src/rct-model.mjs';
 import {createRctHandler} from './src/rct-review.mjs';import {createRctStore} from './src/rct-store.mjs';
 import {exportReviews} from './src/rct-export.mjs';import {dropboxLink,loadDropboxTemplate} from './src/rct-dropbox.mjs';import {createHash} from 'node:crypto';
 import {createRctVersions,validatePdf,MAX_PDF_BYTES} from './src/rct-versions.mjs';
@@ -17,22 +17,22 @@ test('RCT money inputs preserve blanks and zero and reject invalid values',()=>{
  for(const award of [-1,NaN,Infinity,'12',0.001,100000001])assert.throws(()=>validateReview({...emptyReview(),award}));
  assert.throws(()=>validateReview({...emptyReview(),notes:'x'.repeat(15001)}));assert.throws(()=>validateReview({...emptyReview(),unexpected:true}));
  assert.deepEqual(fundingSummary(emptyReview()),{assigned:null,local:null,central:null,unallocated:null,complete:false});
- const r={...emptyReview(),award:100,school:20,department:10,pi:5,provost:60,vpr:5,decision:'Support'};assert.deepEqual(fundingSummary(r),{assigned:100,local:35,central:65,unallocated:0,complete:true});
+ const r={...emptyReview(),award:90,school:15,department:10,pi:5,provost:30,evpt:30,vpr:999,decision:'Support'};assert.deepEqual(fundingSummary(r),{assigned:90,local:30,central:60,unallocated:0,complete:true});
  assert.equal(fundingSummary({...r,award:105}).complete,false);assert.equal(fundingSummary({...emptyReview(),award:0,decision:'Decline'}).complete,true);
 });
 test('RCT commitment views include only support decisions and reconcile every funding source',()=>{
  const r=(id,area,department,review)=>({...row(),id,source:{...source,pi:id,area,department},review:{...emptyReview(),...review}});
- const rows=[r('A','School A','Department A',{decision:'Support',award:100,school:20,department:10,pi:5,provost:50,evpt:10,vpr:5}),r('B','School A','Department B',{decision:'Partial support',award:50,school:10,department:0,pi:0,provost:30,evpt:0,vpr:10}),r('C','Joint schools','Joint departments',{decision:'Discuss',award:1000,school:900}),r('D','School B','Department D',{decision:'Decline',award:0})];
- const view=commitmentView(rows);assert.equal(view.selected,2);assert.equal(view.excluded,2);for(const [key,value]of Object.entries({award:150,school:30,department:10,pi:5,provost:80,evpt:10,vpr:15,assigned:150,unallocated:0}))assert.equal(view.total.amounts[key].total,value,key);
- const schools=commitmentView(rows,{groupBy:'school'});assert.equal(schools.rows.length,1);assert.equal(schools.rows[0].label,'School A');assert.equal(schools.rows[0].amounts.award.total,150);
- const departments=commitmentView(rows,{groupBy:'department'});assert.equal(departments.rows.length,2);assert.equal(departments.rows.reduce((n,g)=>n+g.amounts.award.total,0),150);
+ const rows=[r('A','School A','Department A',{decision:'Support',award:120,school:20,department:10,pi:10,provost:1,evpt:1,vpr:999}),r('B','School A','Department B',{decision:'Partial support',award:60,school:10,department:5,pi:5,provost:1,evpt:1,vpr:999}),r('C','Joint schools','Joint departments',{decision:'Discuss',award:1000,school:900}),r('D','School B','Department D',{decision:'Decline',award:0})];
+ const view=commitmentView(rows);assert.equal(view.selected,2);assert.equal(view.excluded,2);for(const [key,value]of Object.entries({award:180,school:30,department:15,pi:15,provost:60,evpt:60,assigned:180,unallocated:0}))assert.equal(view.total.amounts[key].total,value,key);
+ const schools=commitmentView(rows,{groupBy:'school'});assert.equal(schools.rows.length,1);assert.equal(schools.rows[0].label,'School A');assert.equal(schools.rows[0].amounts.award.total,180);
+ const departments=commitmentView(rows,{groupBy:'department'});assert.equal(departments.rows.length,2);assert.equal(departments.rows.reduce((n,g)=>n+g.amounts.award.total,0),180);
  assert.equal(commitmentView(rows,{scope:'all',groupBy:'school'}).selected,4);assert.equal(commitmentView(rows,{scope:'undecided'}).rows[0].label,'C');assert.equal(commitmentView(rows,{scope:'declined'}).total.amounts.award.total,0);
  for(const d of ['','Discuss','Do not support','support with conditions'])assert.equal(decisionState(d),'undecided');assert.equal(decisionState(' Partial support '),'supported');assert.equal(fundingSummary(rows[2].review).complete,false);
  assert.throws(()=>commitmentView(rows,{scope:'bad'}));
 });
 test('RCT commitment totals retain missing versus zero and never double-count joint affiliations',()=>{
  const rows=[{...row(),id:'A',source:{...source,area:'Joint A / B'},review:{...emptyReview(),decision:'Support',award:0,school:0}},{...row(),id:'B',source:{...source,area:'Joint A / B'},review:{...emptyReview(),decision:'Support'}}];
- const view=commitmentView(rows,{groupBy:'school'});assert.equal(view.rows.length,1);assert.equal(view.total.count,2);assert.deepEqual(view.total.amounts.school,{total:0,entered:1,count:2});assert.deepEqual(view.total.amounts.vpr,{total:null,entered:0,count:2});assert.deepEqual(view.total.amounts.award,{total:0,entered:1,count:2});
+ const view=commitmentView(rows,{groupBy:'school'});assert.equal(view.rows.length,1);assert.equal(view.total.count,2);assert.deepEqual(view.total.amounts.school,{total:0,entered:1,count:2});assert.equal(Object.hasOwn(view.total.amounts,'vpr'),false);assert.deepEqual(view.total.amounts.department,{total:null,entered:0,count:2});assert.deepEqual(view.total.amounts.award,{total:0,entered:1,count:2});
  const none=commitmentView(rows.map(r=>({...r,review:{...r.review,decision:''}})));assert.equal(none.selected,0);assert.equal(none.total.amounts.award.total,null);
 });
 test('RCT independent permissions protect every route',async()=>{
@@ -86,8 +86,8 @@ function template(){const cells=(r)=>'ABCDEFGHIJKLMNOPQRSTUV'.split('').map(c=>`
 test('RCT Excel maps all 11 proposals, preserves styles, removes links and recalculates local formulas',()=>{
  const rows=Array.from({length:11},(_,i)=>({...row(),id:'FY27-RCT2|fake-'+i,source:{...source,pi:'Example '+String(i).padStart(2,'0'),order:i},review:{...emptyReview(),award:i===0?0:100,school:i===0?null:40,provost:i===0?null:60,decision:'Support',notes:'=NOT_A_FORMULA & <text>'}}));
  const zip=unzipSync(exportReviews(template(),rows)),sheet=strFromU8(zip['xl/worksheets/sheet1.xml']);
- assert.match(sheet,/<dimension ref="A2:V19"/);assert.match(sheet,/<c r="B18"[^>]*t="inlineStr">[\s\S]*?Example 10/);assert.match(sheet,/<c r="G8"[^>]*><v>0<\/v>/);assert.match(sheet,/<c r="H8"[^>]*\/>/);
- assert.match(sheet,/IF\(G18="","",G18-SUM\(H18:M18\)\)/);assert.match(sheet,/COUNTA\(B8:B18\)/);assert.match(sheet,/=NOT_A_FORMULA &amp; &lt;text&gt;/);
+ assert.match(sheet,/<dimension ref="A2:V19"/);assert.match(sheet,/<c r="B18"[^>]*t="inlineStr">[\s\S]*?Example 10/);assert.match(sheet,/<c r="G8"[^>]*><v>0<\/v>/);assert.match(sheet,/<c r="H8"[^>]*><f>ROUND\(IF\(G8="",E8,G8\)\/3,2\)<\/f><v>0<\/v>/);
+ assert.match(sheet,/IF\(G18="",E18,G18\)-SUM\(H18:L18\)/);assert.match(sheet,/Calculation basis/);assert.doesNotMatch(sheet,/VPR/);assert.match(sheet,/COUNTA\(B8:B18\)/);assert.match(sheet,/=NOT_A_FORMULA &amp; &lt;text&gt;/);
  assert.match(strFromU8(zip['xl/workbook.xml']),/name="Review details"/);assert.match(strFromU8(zip['xl/worksheets/rct-review-details.xml']),/Overall priority/);assert.match(strFromU8(zip['xl/worksheets/rct-review-details.xml']),/Grade \(1–5\)/);assert.equal(strFromU8(zip['xl/styles.xml']),'unchanged style');assert.ok(!Object.keys(zip).some(k=>k.includes('externalLinks')||k.includes('calcChain')));assert.ok(!strFromU8(zip['xl/tables/table1.xml']).includes('calculatedColumnFormula'));assert.match(strFromU8(zip['xl/tables/table1.xml']),/A7:V18/);
 });
 test.before(()=>{process.env.APP_ORIGIN='https://example.test';});
@@ -105,17 +105,20 @@ test('RCT managers manage only RCT; independent grants never expose finance page
  assert.deepEqual(policy.managedScopes(data,'rct_admin'),['rct']);assert.throws(()=>policy.validatePolicy({...data,grants:[...data.grants,{username:'bad',scope:'rct',role:'limited_write'}]}));
 });
 test('reviewer grades, optional ranks and unknown grad flags validate without altering existing notes',()=>{
- const old={award:null,provost:100,evpt:null,school:null,department:null,pi:null,vpr:null,decision:'',notes:' Original note\n '};const r=validateReview(old);assert.equal(r.notes,old.notes);assert.equal(r.autoCentral,false);assert.equal(r.gradStudents,null);assert.equal(r.reviewers.length,6);
+ const old={award:null,provost:100,evpt:null,school:null,department:null,pi:null,vpr:null,decision:'',notes:' Original note\n '};const r=validateReview(old);assert.equal(r.notes,old.notes);assert.equal(r.autoCentral,true);assert.equal(r.gradStudents,null);assert.equal(r.reviewers.length,6);
  for(const priority of [0,-1,1.5,1001,'1'])assert.throws(()=>validateReview({...r,priority}));
  for(const grade of ['0','6','A','1.5'])assert.throws(()=>validateReview({...r,reviewers:r.reviewers.map((v,i)=>i? v:{...v,grade})}));
  assert.equal(validateReview({...r,priority:1,gradStudents:false}).gradStudents,false);
  const reviewers=r.reviewers.map((v,i)=>i===4?{name:'Example reviewer',grade:'5',comments:'Example comment'}:v);assert.equal(validateReview({...r,reviewers}).reviewers[4].grade,'5');
  assert.throws(()=>validateReview({...r,reviewers:reviewers.map((v,i)=>i===4?{...v,name:''}:v)}));
 });
-test('funding defaults calculate rounded thirds and preserve manual allocations',async()=>{
+test('central thirds are mandatory; local blanks and nonfatal funding mismatches are preserved',async()=>{
  assert.deepEqual(centralThirds(100),{provost:33.33,evpt:33.33,local:33.34,schoolTarget:16.67});
  const f=transportFixture(),s=createRctStore({transport:f.transport,table:'exampletable'});const saved=await s.save(row().id,{...emptyReview(),award:100},'v1','reviewer');assert.equal(saved.row.review.provost,33.33);assert.equal(saved.row.review.evpt,33.33);assert.equal(saved.row.review.school,null);
- const manual=await s.save(row().id,{...emptyReview(),award:100,provost:20,evpt:10,autoCentral:false},'v1','reviewer');assert.equal(manual.row.review.provost,20);assert.equal(manual.row.review.evpt,10);
+ const manual=await s.save(row().id,{...emptyReview(),award:100,provost:20,evpt:10,autoCentral:false},'v1','reviewer');assert.equal(manual.row.review.provost,33.33);assert.equal(manual.row.review.evpt,33.33);assert.equal(manual.row.review.school,null);assert.equal(fundingSummary(manual.row.review,source).unallocated,33.34);
+ const over=await s.save(row().id,{...emptyReview(),award:100,school:100},'v1','reviewer');assert.equal(over.row.review.school,100);assert.equal(fundingSummary(over.row.review,source).unallocated,-66.66);
+ const fallback=await s.save(row().id,{...emptyReview()},'v1','reviewer');assert.equal(fallback.row.review.award,null);assert.equal(fallback.row.review.provost,40);assert.equal(fallback.row.review.evpt,40);
+ const zero=await s.save(row().id,{...emptyReview(),award:0},'v1','reviewer');assert.equal(zero.row.review.provost,0);assert.equal(zero.row.review.evpt,0);
 });
 test('edited shared and reviewer comments retain previous text; stale clients cannot delete new fields',async()=>{
  const original={...emptyReview(),notes:'Original shared note',priority:2,gradStudents:true};original.reviewers[0].comments='Original reviewer comment';original.reviewers[0].grade='4';
@@ -144,4 +147,14 @@ test('file routes require RCT access; final versions must belong to the selected
  const file={id:row().id,filename:'example.pdf',content:Buffer.from('%PDF-1.7 example').toString('base64')};assert.equal((await h(event('versions','POST',file))).statusCode,201);assert.equal(uploads,1);
  const bad=await h(event('data','POST',{id:row().id,revision:'v1',review:{...emptyReview(),finalVersion:'00000000-0000-4000-8000-000000000002'}}));assert.equal(bad.statusCode,400);assert.equal(saves,0);
  const denied=createRctHandler({authorize:async()=>({statusCode:403}),store:{list(){throw Error('Must not open');}},versions});for(const action of ['versions','file'])assert.equal((await denied(event(action))).statusCode,403);
+});
+
+test('API calculates thirds immediately from the requested total without creating an award or local amounts',async()=>{
+ const handler=createRctHandler({authorize:auth,store:{list:async()=>[row()]}});const result=JSON.parse((await handler(event('data'))).body).records[0];
+ assert.equal(result.review.award,null);assert.equal(result.review.provost,40);assert.equal(result.review.evpt,40);for(const key of ['school','department','pi'])assert.equal(result.review[key],null);assert.equal(result.review.notes,'');
+ assert.equal(fundingTotal(result.review,result.source),120);assert.equal(fundingSummary(result.review,result.source).unallocated,40);
+});
+test('new saves preserve retired VPR values for history but exclude them from assigned funding',async()=>{
+ const initial={...emptyReview(),vpr:999,notes:'Keep this note'},fixture=transportFixture(initial),store=createRctStore({transport:fixture.transport,table:'exampletable'});
+ const saved=await store.save(row().id,{...emptyReview(),vpr:0,award:120,school:40,notes:'Keep this note'},'v1','reviewer');assert.equal(saved.row.review.vpr,999);assert.equal(saved.row.review.notes,'Keep this note');assert.equal(fundingSummary(saved.row.review,source).assigned,120);assert.equal(fundingSummary(saved.row.review,source).complete,false);
 });

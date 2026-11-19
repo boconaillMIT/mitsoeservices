@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {createQbTransport} from './budget-hq-qb.mjs';
 import config from './rct-tables.json' with {type:'json'};
-import {ROUND,validateReview,centralThirds,sortProposals} from './rct-model.mjs';
+import {ROUND,validateReview,fundingReview,sortProposals} from './rct-model.mjs';
 const xml=s=>String(s).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
 const unxml=s=>s.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&');
 export function createRctStore({transport=createQbTransport(),table=config.reviews,uuid=randomUUID,now=()=>new Date()}={}){
@@ -15,10 +15,10 @@ export function createRctStore({transport=createQbTransport(),table=config.revie
   const revisionField=[...info.matchAll(/<field\b[^>]*>([\s\S]*?)<\/field>/g)].find(m=>new RegExp(`<fid>\\s*${f.Revision}\\s*</fid>`).test(m[1]));
   const current=revisionField&&/<value>([\s\S]*?)<\/value>/.exec(revisionField[1])?.[1];if(!updateId||unxml(current||'')!==revision)return {conflict:true};
   const next=uuid(),at=now().toISOString();
-  review=validateReview({...row.review,...review,notesHistory:row.review.notesHistory});
+  review=validateReview({...row.review,...review,vpr:row.review.vpr,notesHistory:row.review.notesHistory});
   if(review.notes!==row.review.notes&&row.review.notes)review.notesHistory.push({text:row.review.notes,by:row.updatedBy||'Previous review',at:row.updatedAt?new Date(row.updatedAt).toISOString():at});
   for(let i=0;i<6;i++){const previous=row.review.reviewers[i],next=review.reviewers[i];if(previous.comments&&previous.comments!==next.comments)review.notesHistory.push({text:previous.name+': '+previous.comments,by:row.updatedBy||'Previous review',at:row.updatedAt?new Date(row.updatedAt).toISOString():at});}
-  if(review.autoCentral&&review.award!==null){const thirds=centralThirds(review.award);review.provost=thirds.provost;review.evpt=thirds.evpt;}
+  review=fundingReview(review,row.source);
   const values={'Review JSON':JSON.stringify(validateReview(review)),Revision:next,'Updated By':actor,'Updated At':Date.parse(at)};
   try{await transport.native(table,'API_EditRecord',`<rid>${row.rid}</rid><update_id>${xml(updateId)}</update_id>`+Object.entries(values).map(([k,v])=>`<field fid="${f[k]}">${xml(v)}</field>`).join(''));}catch(e){if(e.qbCode)return {conflict:true};throw e;}
   return {row:{...row,review,revision:next,updatedBy:actor,updatedAt:at}};

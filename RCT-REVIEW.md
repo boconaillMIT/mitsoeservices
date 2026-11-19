@@ -24,7 +24,7 @@ and re-imported before exporting. Offline Excel changes do not update QuickBase.
 Only saved reviews are included in downloads. Unknown amounts stay blank and
 confirmed zero amounts stay numeric zero. Local support is School + Department +
 PI funding; central support needed is the proposed award less local support;
-assigned funding includes all six funding sources. The page flags funding gaps
+assigned funding includes the five active funding sources. The page flags funding gaps
 and excess contributions while permitting draft reviews to be saved.
 
 Each proposal can also have a separately stored preliminary PDF review in source
@@ -52,9 +52,11 @@ financial data must not be added to tests or committed as public assets.
 Review improvements (November 2026):
 - Six reviewer slots: Hammond, Balakrishnan, Plata, Solomon, and two self-named reviewers. Grades are 1–5 or blank, with separate comments. No high/low interpretation or grade average is inferred.
 - Overall priority is an optional positive integer (1 is highest). Graduate-student funding is unknown until the checkbox is set; saved false remains distinct from unknown.
-- Automatic central funding calculates Provost and EVPT at a rounded third of the proposed award. Existing manual amounts stay manual. School target is one sixth; School, department and PI amounts remain explicit editable contributions. The local residual absorbs rounding cents.
+- Central funding always calculates Provost and EVPT at a rounded third of the proposed award, or the requested total when no award is entered. The former manual central-funding mode is retired. School target is one sixth; School, department and PI amounts remain explicit editable contributions. The local residual absorbs rounding cents.
 - Original PDFs remain in Dropbox. Each PDF upload (maximum 3 MB) creates an independent record in the MIT QuickBase proposal-version table. No files are stored in Netlify Blobs. Readers download through the RCT-authorized endpoint; Dropbox permissions still apply to original-source links.
 - A final-version pointer is saved with the review revision. The server verifies uploaded final versions belong to the proposal. No document versions are deleted or replaced.
 - Workbook overview collects saved grades, priority, grad flags, funding totals and comments in department course-number order. The Excel download retains its original columns and adds a Review details sheet. Offline edits do not sync back.
 - Changed shared/reviewer comments retain prior text in server-managed note history. Incoming clients cannot erase that history. Existing fields omitted by older clients are retained, and atomic QuickBase update_id protection remains in place.
 - Before releasing the separate-permission change, inspect the production policy. After publishing, preserve existing school Read/Write reviewers through explicit RCT grants without altering their finance grants. Never infer MIT logins from reviewer display names.
+
+Funding correction: Provost and EVPT are always calculated as a rounded third each. The proposed award is the calculation base when present (including zero); otherwise use the requested total. No award or support decision is inferred from that fallback. Only SoE, department and PI contributions are entered manually. VPR is excluded from active funding, UI, CSV and Excel calculations. Legacy stored VPR values remain preserved for compatibility and cannot be changed by new saves. M in the original Excel layout now describes the calculation basis, preserving all later note columns. Funding shortfalls and overages remain nonfatal warnings.
