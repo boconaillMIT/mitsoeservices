@@ -43,12 +43,12 @@ export function normalizeBudgetWorkbook(workbook){
  const datasets=[];
  for(const p of profiles(workbook)){
   const sheet=workbook.sheets.find(s=>s.name.trim()===p.sheet),m=p.map,rows=[];let unit='';
-  for(const row of sheet.rows){if(p.end&&row.row>p.end)continue;if(row.row<(p.start||6)&&!p.tabular)continue;if(p.tabular&&row.row<2)continue;const c=cells(row),read=col=>norm(c[col]?.value),u=read(m.unit),description=read(m.description)||read(p.fallbackDescription);const used=[...(m.base||[]),...(m.non||[]),m.school,m.scc,m.declined,p.provostTotal].filter(Boolean);
+  for(const row of sheet.rows){if(p.end&&row.row>p.end)continue;if(row.row<(p.start||6)&&!p.tabular)continue;if(p.tabular&&row.row<2)continue;const c=cells(row),read=col=>norm(c[col]?.value),u=read(m.unit),sourceDescription=read(m.description)||read(p.fallbackDescription);let description=sourceDescription;const used=[...(m.base||[]),...(m.non||[]),m.school,m.scc,m.declined,p.provostTotal].filter(Boolean);
    if(p.sameColumn){const hasMoney=[...used,...p.requested].some(k=>amount(c[k])!==null);if(u&&!hasMoney&&!badLabel(u)&&!/no request/i.test(u)){unit=u;continue;}if(!unit||!description||!hasMoney||badLabel(description)||/no request made/i.test(description))continue;}
    else if(p.tabular){if(!u||!description||!read(p.statusColumn))continue;unit=u;}
-   else {if(u&&badLabel(u)||description&&badLabel(description))continue;if(u)unit=u;if(!unit||!description)continue;}
+   else {if(u&&badLabel(u)||description&&badLabel(description))continue;if(u)unit=u;if(!description&&u&&used.some(k=>amount(c[k])!==null))description='[No request description in source]';if(!unit||!description)continue;}
    const fiscal=p.yearColumn?Number(read(p.yearColumn)):p.year;if(!Number.isInteger(fiscal)||fiscal<2000||fiscal>2100)continue;
-   const notes=m.notes.map(read).filter(Boolean).join(' | '),issues=[];
+   const notes=m.notes.map(read).filter(Boolean).join(' | '),issues=[];if(!sourceDescription)issues.push('Funding amount has no request description in the source row.');
    if(/ASSUMPTION|no amount|not requested|does not name|no funding source|to confirm/i.test(notes))issues.push('Source note identifies an assumption or an unconfirmed request/funder.');
    if(p.yearColumn&&fiscal!==Number((/FY(\d{2})/.exec(sheet.name)||[])[1])+2000)issues.push(`Row says FY${String(fiscal).slice(-2)}; worksheet name differs.`);
    for(const col of used)if(c[col]?.type==='e')issues.push(`Spreadsheet error at ${c[col].cell}: ${c[col].value}`);
