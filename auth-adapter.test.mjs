@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {handler as login} from './netlify/functions/auth-login.mjs';
-import {handler as callback} from './netlify/functions/auth-callback.mjs';
-import {handler as logout} from './netlify/functions/auth-logout.mjs';
-import {handler as session} from './netlify/functions/auth-session.mjs';
+import {handler as login} from './netlify/functions/auth-login.cjs';
+import {handler as callback} from './netlify/functions/auth-callback.cjs';
+import {handler as logout} from './netlify/functions/auth-logout.cjs';
+import {handler as session} from './netlify/functions/auth-session.cjs';
 test('deployed authentication adapters preserve native multi-value cookie responses',async()=>{
  const names=['APP_ORIGIN','OKTA_ISSUER','OKTA_CLIENT_ID','SESSION_SECRET'];const previous=Object.fromEntries(names.map(k=>[k,process.env[k]]));
  Object.assign(process.env,{APP_ORIGIN:'https://example.test',OKTA_ISSUER:'https://issuer.test',OKTA_CLIENT_ID:'test-client',SESSION_SECRET:'s'.repeat(64)});
