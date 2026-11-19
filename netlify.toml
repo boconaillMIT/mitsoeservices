@@ -287,6 +287,18 @@
   force = true
 
 [[redirects]]
+  from = "/soe-hq/budget-sources"
+  to = "/.netlify/functions/budget-sources"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/soe-hq/budget-sources/:action"
+  to = "/.netlify/functions/budget-sources?action=:action"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/soe-hq/rct-review"
   to = "/.netlify/functions/rct-review"
   status = 200
