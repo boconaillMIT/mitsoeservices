@@ -1,4 +1,4 @@
-import {workbookSourceHtml} from '/budget-model.mjs';
+import {workbookSourceHtml,sumRequestFunding} from '/budget-model.mjs';
 // SoE HQ → Budget: cycle roll-up and unit pages. Data: /.netlify/functions/budget-hq-data
 const $=s=>document.querySelector(s);
 const root=$('#bh'),view=root.dataset.view,cycle=root.dataset.cycle,unitKey=root.dataset.unit;
@@ -23,24 +23,18 @@ async function load(){
  $('#bh-loading').hidden=true;$('#bh-content').hidden=false;view==='unit'?renderUnit():renderCycle();
 }
 
-// ---------- shared bars ----------
-function splitBar(requested,soe,provost,max){
- const w=v=>Math.max(0,(v||0)/max*100);
- return `<div class="bh-bar" title="Requested ${money(requested)} · SoE ${money(soe)} · Provost ${money(provost)}"><i class="req" style="width:${w(requested)}%"></i><i style="width:${w(soe)}%;background:${SOE}"></i><i style="width:${w(provost)}%;background:${PROV};left:${w(soe)}%"></i></div>`;
-}
-const legend=`<div class="bv-legend"><span><i style="background:${REQ}"></i>Requested</span><span><i style="background:${SOE}"></i>Supported, SoE</span><span><i style="background:${PROV}"></i>Supported, Provost</span></div>`;
-
+// ---------- requested funding offices ----------
+function fundingCards(t){const f=t.request_funding||{};return '<div class="bv-kpis bh-ask-kpis">'+tile('Asked of the Dean / SoE',money(f.dean),'School share of the working requests')+tile('Asked of the Provost',money(f.provost),'Provost share of the working requests')+tile('Asked of SCC',money(f.scc),'SCC share of the working requests')+tile('All-funder request total',money(t.requested),t.lines+' request lines'+(t.unpriced?' · '+t.unpriced+' unpriced':''))+'</div>'+(f.unassigned?'<p class="bv-status bh-funding-gap">'+money(f.unassigned)+' of the workbook total is outside these three funder asks. Unassigned and workbook Reject amounts are not added to the Dean’s ask.</p>':'');}
+function deanBar(value,max){return '<div class="bh-bar" title="Asked of the Dean: '+money(value)+'"><i class="dean" style="width:'+Math.max(0,(value||0)/max*100)+'%"></i></div>';}
 // ---------- cycle page ----------
 function renderCycle(){
- const t=data.totals,list=data.units,max=Math.max(1,...list.map(u=>u.requested||0));
- $('#bh-content').innerHTML=`
- <div class="bv-kpis">${tile('Requested',money(t.requested),t.lines+' request lines'+(t.unpriced?' · '+t.unpriced+' amount not specified':''))+tile('Supported so far',short(t.supported),t.supported_count+' supported · '+t.declined_count+' declined')+tile('SoE share',short(t.soe),t.supported?pct(t.soe/t.supported)+' of supported':'')+tile('Provost share',short(t.provost),t.pending+' lines still pending')}</div>
- ${t.source_workbooks?.length?`<p class="bv-status">Requests loaded from ${t.source_workbooks.map(esc).join(', ')}. Workbook allocations are proposals; HQ decisions are saved separately.</p>`:''}
- <section class="bv-panel"><div class="bh-head"><h2>Units</h2><a class="desktop" href="${API}?cycle=${cycle}&format=csv">Download all lines (CSV)</a></div>${legend}
- <div class="bv-scroll"><table class="bv-table bh-units"><thead><tr><th>Unit</th><th style="width:28%"></th><th class="n">Lines</th><th class="n">Requested</th><th class="n">Supported</th><th class="n">SoE</th><th class="n">Provost</th><th class="n">Declined</th><th class="n">Pending</th></tr></thead><tbody>
- ${list.map(u=>`<tr class="${u.lines?'':'bh-none'}"><td><a href="/soe-hq/budget/${cycle}/${encodeURIComponent(u.key)}">${esc(u.label)}</a>${u.has_wallet?'':' <span class="bh-tag">not mapped</span>'}</td><td>${u.lines?splitBar(u.requested,u.soe,u.provost,max):'<span class="bv-status">No requests</span>'}</td><td class="n">${u.lines}${u.unpriced?`<small> · ${u.unpriced} unpriced</small>`:''}</td><td class="n">${short(u.requested)}</td><td class="n">${short(u.supported)}</td><td class="n">${short(u.soe)}</td><td class="n">${short(u.provost)}</td><td class="n">${short(u.declined_requested)}</td><td class="n">${u.pending?'<strong>'+u.pending+'</strong>':'0'}</td></tr>`).join('')}
- <tr class="bh-total"><td>Total</td><td></td><td class="n">${t.lines}</td><td class="n">${short(t.requested)}</td><td class="n">${short(t.supported)}</td><td class="n">${short(t.soe)}</td><td class="n">${short(t.provost)}</td><td class="n">${short(t.declined_requested)}</td><td class="n">${t.pending}</td></tr></tbody></table></div>
- <p class="bv-status">Decisions are saved in QuickBase’s HQ Budget Decisions table, separate from the budget table’s approved fields. ${data.can_edit?'':'You have read-only access.'}</p></section>`;
+ const t=data.totals,f=t.request_funding||{},list=[...data.units].sort((a,b)=>(b.request_funding?.dean??-1)-(a.request_funding?.dean??-1)||a.label.localeCompare(b.label)),max=Math.max(1,...list.map(u=>u.request_funding?.dean||0));
+ $('#bh-content').innerHTML=fundingCards(t)+
+ '<p class="bv-status">Working requests by funding office. Source assumptions remain subject to review; these amounts are separate from saved HQ support decisions.</p>'+
+ (t.source_workbooks?.length?'<p class="bv-status">Source: '+t.source_workbooks.map(esc).join(', ')+'.</p>':'')+
+ '<section class="bv-panel"><div class="bh-head"><h2>Requests by unit</h2><a class="desktop" href="'+API+'?cycle='+cycle+'&format=csv">Download all lines (CSV)</a></div><p class="bv-status">Sorted by the amount asked of the Dean.</p><div class="bv-scroll"><table class="bv-table bh-units"><thead><tr><th>Unit</th><th style="width:18%">Dean ask</th><th class="n">Dean / SoE</th><th class="n">Provost</th><th class="n">SCC</th><th class="n">Unassigned</th><th class="n">All funders</th><th class="n">Lines</th><th>HQ review</th></tr></thead><tbody>'+
+ list.map(u=>{const x=u.request_funding||{};return '<tr class="'+(u.lines?'':'bh-none')+'"><td><a href="/soe-hq/budget/'+cycle+'/'+encodeURIComponent(u.key)+'">'+esc(u.label)+'</a></td><td>'+(u.lines?deanBar(x.dean,max):'<span class="bv-status">No requests</span>')+'</td><td class="n bh-dean">'+money(x.dean)+'</td><td class="n">'+money(x.provost)+'</td><td class="n">'+money(x.scc)+'</td><td class="n">'+money(x.unassigned)+'</td><td class="n">'+money(u.requested)+'</td><td class="n">'+u.lines+'</td><td>'+u.pending+' pending · '+u.supported_count+' supported</td></tr>';}).join('')+
+ '<tr class="bh-total"><td>Total</td><td></td><td class="n bh-dean">'+money(f.dean)+'</td><td class="n">'+money(f.provost)+'</td><td class="n">'+money(f.scc)+'</td><td class="n">'+money(f.unassigned)+'</td><td class="n">'+money(t.requested)+'</td><td class="n">'+t.lines+'</td><td>'+t.pending+' pending</td></tr></tbody></table></div><p class="bv-status">HQ decisions so far: '+money(t.supported)+' supported, including '+money(t.soe)+' SoE and '+money(t.provost)+' Provost. '+t.declined_count+' declined. '+(data.can_edit?'':'Read-only access.')+'</p></section>';
 }
 
 // ---------- unit page ----------
@@ -50,6 +44,7 @@ function renderUnit(){
  const prev=h[h.length-1],ry=r?.unit?.years?.[r.unit.years.length-1];
  $('#bh-content').innerHTML=`
  <div class="bh-head bh-noprint"><div class="bh-chips">${chip(t)}</div><button type="button" id="bh-print">Print briefing</button></div>
+ ${fundingCards(t)}
  <div class="bv-kpis">${tile(fy(data.year)+' request',short(t.requested),`${short(t.recurring)} recurring · ${short(t.onetime)} one-time${t.unpriced?` · ${t.unpriced} amount not specified`:''}`)
   +tile('HQ support so far',short(t.supported),t.supported?`SoE ${short(t.soe)} · Provost ${short(t.provost)}`:t.pending+' lines pending')
   +tile(prev?fy(prev.year)+' approved':'Last approved',short(prev?.approved),prev?'of '+short(prev.requested)+' requested':'')
@@ -78,7 +73,7 @@ function lineRow(l){
  const edit=data.can_edit,sup=l.decision==='support',custom=sup&&!LEVELS.includes(l.support_pct);
  const desc=`${l.requested===null?'<p class="bv-status error">Amount not specified — excluded from dollar totals.</p>':''}<div class="bh-desc">${esc(l.description||'(no description)')}</div>${l.revised&&l.original&&l.revised!==l.original?`<details class="bh-noprint"><summary>Original request</summary>${esc(l.original)}</details>`:''}<div class="bv-status">${esc(l.category||'Uncategorised')}${l.qb_status?' · QuickBase status: '+esc(l.qb_status):''}</div>`;
  const sourceContext=workbookSourceHtml(l.source);
- const amounts=`<td class="n">${money(l.recurring)}</td><td class="n">${money(l.onetime)}</td><td class="n"><strong>${money(l.requested)}</strong></td>`;
+ const amounts=`<td class="n bh-dean">${money(l.request_funding?.dean)}</td><td class="n">${money(l.request_funding?.provost)}</td><td class="n">${money(l.request_funding?.scc)}</td><td class="n"><strong>${money(l.requested)}</strong></td>`;
  const result=`<td class="n" data-out="supported">${l.decision==='pending'?'—':money(l.supported)}</td><td class="n" data-out="soe">${sup?money(l.soe):'—'}</td><td class="n" data-out="provost">${sup?money(l.provost):'—'}</td>`;
  if(!edit)return `<tr class="bh-${l.decision}"><td>${desc}${sourceContext}</td>${amounts}<td>${label(l)}${l.note?'<div class="bh-note">'+esc(l.note)+'</div>':''}</td>${result}</tr>`;
  return `<tr class="bh-${l.decision}" data-id="${esc(l.record_id)}"><td>${desc}</td>${amounts}
@@ -92,8 +87,8 @@ function lineRow(l){
 const label=l=>l.decision==='support'?`Support ${l.support_pct}% · SoE ${l.soe_pct}% / Provost ${l.provost_pct}%`:l.decision==='decline'?'Declined':'Pending';
 function lines(){
  const t=data.totals;
- $('#bh-lines').innerHTML=data.lines.length?`<table class="bv-table bh-lines"><thead><tr><th>Request</th><th class="n">Recurring</th><th class="n">One-time</th><th class="n">Requested</th><th>Decision</th><th class="n">Supported</th><th class="n">SoE</th><th class="n">Provost</th></tr></thead><tbody>${data.lines.map(lineRow).join('')}
- <tr class="bh-total"><td>Total (${t.lines} lines${t.pending?', '+t.pending+' pending':''})</td><td class="n">${money(t.recurring)}</td><td class="n">${money(t.onetime)}</td><td class="n">${money(t.requested)}</td><td></td><td class="n">${money(t.supported)}</td><td class="n">${money(t.soe)}</td><td class="n">${money(t.provost)}</td></tr></tbody></table>`:'<p class="bv-status">No requests recorded in QuickBase for this unit and cycle.</p>';
+ $('#bh-lines').innerHTML=data.lines.length?`<table class="bv-table bh-lines"><thead><tr><th>Request</th><th class="n">Dean / SoE ask</th><th class="n">Provost ask</th><th class="n">SCC ask</th><th class="n">All funders</th><th>Decision</th><th class="n">Supported</th><th class="n">SoE</th><th class="n">Provost</th></tr></thead><tbody>${data.lines.map(lineRow).join('')}
+ <tr class="bh-total"><td>Total (${t.lines} lines${t.pending?', '+t.pending+' pending':''})</td><td class="n">${money(t.request_funding?.dean)}</td><td class="n">${money(t.request_funding?.provost)}</td><td class="n">${money(t.request_funding?.scc)}</td><td class="n">${money(t.requested)}</td><td></td><td class="n">${money(t.supported)}</td><td class="n">${money(t.soe)}</td><td class="n">${money(t.provost)}</td></tr></tbody></table>`:'<p class="bv-status">No requests recorded in QuickBase for this unit and cycle.</p>';
 }
 function readRow(tr){const f=n=>tr.querySelector(`[data-f="${n}"]`),decision=f('decision').value,level=f('level').value;
  return {decision,support_pct:decision==='support'?Number(level==='custom'?f('custom').value:level):null,soe_pct:decision==='support'?Number(f('soe').value):null,note:f('note').value.trim()};}
@@ -117,7 +112,7 @@ async function save(tr){
  }catch(e){msg.textContent=e.message;msg.classList.add('error');}finally{btn.disabled=false;}
 }
 function recalc(ls){const s=k=>ls.reduce((a,l)=>a+(l[k]??0),0),c=d=>ls.filter(l=>l.decision===d).length;
- return {lines:ls.length,unpriced:ls.filter(l=>l.requested===null).length,source_workbooks:[...new Set(ls.flatMap(l=>l.source?.sources?.map(s=>s.workbook)||[]))],requested:ls.length&&ls.every(l=>l.requested===null)?null:s('requested'),recurring:s('recurring'),onetime:s('onetime'),supported:s('supported'),soe:s('soe'),provost:s('provost'),declined_requested:ls.filter(l=>l.decision==='decline').reduce((a,l)=>a+(l.requested??0),0),pending:c('pending'),supported_count:c('support'),declined_count:c('decline')};}
+ return {lines:ls.length,request_funding:sumRequestFunding(ls),unpriced:ls.filter(l=>l.requested===null).length,source_workbooks:[...new Set(ls.flatMap(l=>l.source?.sources?.map(s=>s.workbook)||[]))],requested:ls.length&&ls.every(l=>l.requested===null)?null:s('requested'),recurring:s('recurring'),onetime:s('onetime'),supported:s('supported'),soe:s('soe'),provost:s('provost'),declined_requested:ls.filter(l=>l.decision==='decline').reduce((a,l)=>a+(l.requested??0),0),pending:c('pending'),supported_count:c('support'),declined_count:c('decline')};}
 
 function history(){
  const h=data.history;if(!h.length){$('#bh-history').innerHTML='<p class="bv-status">No earlier requests on record.</p>';return;}

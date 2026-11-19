@@ -9,7 +9,7 @@ import policy from './policy.cjs';
 import units from './units.cjs';
 import nameMapping from './unit-name-mapping.cjs';
 import {loadBudgetRecords,safeValue} from './budget-explorer.mjs';
-import {mapRecord,numberOrNull} from '../public/budget-model.mjs';
+import {mapRecord,numberOrNull,sumRequestFunding} from '../public/budget-model.mjs';
 import {loadReserves} from './reserves.mjs';
 import {createBudgetHqStore,SECTION_LABEL} from './budget-hq-qb.mjs';
 
@@ -51,10 +51,10 @@ export function applyDecision(ask,dec){
 }
 export function rollUp(lines){
  const sum=k=>lines.reduce((s,l)=>s+(l[k]??0),0),count=d=>lines.filter(l=>l.decision===d).length;
- return {lines:lines.length,unpriced:lines.filter(l=>l.requested===null).length,source_workbooks:[...new Set(lines.flatMap(l=>l.source?.sources?.map(s=>s.workbook)||[]))],requested:lines.length&&lines.every(l=>l.requested===null)?null:r0(sum('requested')),recurring:r0(sum('recurring')),onetime:r0(sum('onetime')),supported:r0(sum('supported')),soe:r0(sum('soe')),provost:r0(sum('provost')),
+ return {lines:lines.length,request_funding:sumRequestFunding(lines),unpriced:lines.filter(l=>l.requested===null).length,source_workbooks:[...new Set(lines.flatMap(l=>l.source?.sources?.map(s=>s.workbook)||[]))],requested:lines.length&&lines.every(l=>l.requested===null)?null:r0(sum('requested')),recurring:r0(sum('recurring')),onetime:r0(sum('onetime')),supported:r0(sum('supported')),soe:r0(sum('soe')),provost:r0(sum('provost')),
   declined_requested:r0(lines.filter(l=>l.decision==='decline').reduce((s,l)=>s+(l.requested??0),0)),pending:count('pending'),supported_count:count('support'),declined_count:count('decline')};
 }
-const lineOf=(a,decisions)=>({record_id:a.record_id,description:a.revised||a.original||a.request,original:a.original,revised:a.revised,category:a.category,source:a.source,recurring:a.recurring,onetime:a.onetime,requested:a.requested,qb_status:a.decision,...applyDecision(a,decisions?.[a.record_id]),version:decisions?.[a.record_id]?.version||null});
+const lineOf=(a,decisions)=>({record_id:a.record_id,description:a.revised||a.original||a.request,original:a.original,revised:a.revised,category:a.category,source:a.source,request_funding:a.requestFunding,recurring:a.recurring,onetime:a.onetime,requested:a.requested,qb_status:a.decision,...applyDecision(a,decisions?.[a.record_id]),version:decisions?.[a.record_id]?.version||null});
 
 // ---------- reserves snapshot (anonymous peers) ----------
 let reserveCache=new Map();
@@ -138,9 +138,9 @@ export function createBudgetHqDataHandler({authorize=access.authorize,asks=loadA
  const list=keys.map(k=>{const ls=(byUnit.get(k)||[]).map(a=>lineOf(a,decided[k]));return {...unitInfo(k,[...new Set((byUnit.get(k)||[]).map(a=>a.unit))]),...rollUp(ls)};})
   .sort((a,b)=>(b.academic-a.academic)||String(a.label).localeCompare(b.label));
  if(q.format==='csv'){
-  const cols=['Unit','Record ID','Description','Category','Recurring requested','One-time requested','Requested','Decision','Support %','Supported','SoE %','SoE amount','Provost %','Provost amount','Note','Updated by','Updated at'];
+  const cols=['Unit','Record ID','Description','Category','Recurring requested','One-time requested','Requested','Asked of Dean / SoE','Asked of Provost','Asked of SCC','Unassigned request','Decision','Support %','Supported','SoE %','SoE amount','Provost %','Provost amount','Note','Updated by','Updated at'];
   const cell=v=>{if(v===null||v===undefined)return '';if(typeof v==='number')return String(v);let s=String(v);if(/^[=+\-@\t\r]/.test(s))s="'"+s;return /[",\n\r]/.test(s)||s.startsWith("'")?'"'+s.replace(/"/g,'""')+'"':s;};
-  const out=[cols.join(',')];for(const k of keys)for(const a of byUnit.get(k)||[]){const l=lineOf(a,decided[k]);out.push([unitInfo(k).label,l.record_id,l.description,l.category,l.recurring,l.onetime,l.requested,l.decision,l.support_pct,l.supported,l.soe_pct,l.soe,l.provost_pct,l.provost,l.note,l.updated_by,l.updated_at].map(cell).join(','));}
+  const out=[cols.join(',')];for(const k of keys)for(const a of byUnit.get(k)||[]){const l=lineOf(a,decided[k]);out.push([unitInfo(k).label,l.record_id,l.description,l.category,l.recurring,l.onetime,l.requested,l.request_funding?.dean,l.request_funding?.provost,l.request_funding?.scc,l.request_funding?.unassigned,l.decision,l.support_pct,l.supported,l.soe_pct,l.soe,l.provost_pct,l.provost,l.note,l.updated_by,l.updated_at].map(cell).join(','));}
   return {statusCode:200,headers:{...base,'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="SoE-${c.cycle.toUpperCase()}-budget-decisions.csv"`},body:out.join('\r\n')};
  }
  return reply(200,{cycle:c.cycle,year:c.year,units:list,totals:rollUp(keys.flatMap(k=>(byUnit.get(k)||[]).map(a=>lineOf(a,decided[k])))),storage_ready:ready,can_edit:canEdit,generated_at:now().toISOString()});

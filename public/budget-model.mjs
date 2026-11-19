@@ -8,7 +8,18 @@ export function mapRecord(row){
  const finalDeclined=numberOrNull(get('declinedFinal')),initialDeclined=numberOrNull(get('declined'));
  const rawYear=String(get('year')??'').trim(),match=/^(?:FY\s*)?(\d{2}|\d{4})$/i.exec(rawYear),year=match?(match[1].length===2?2000+Number(match[1]):Number(match[1])):null;
  const provostBase=numberOrNull(get('provostBase')),provostNon=numberOrNull(get('provostNon'));
- return {year,unit:String(get('unit')??'').trim(),request:String(get('original')||get('revised')||'').trim(),category:String(get('category')??'').trim(),requested:sumPresent(base,non)??request,provost:sumPresent(provostBase,provostNon),provostBase,provostNon,school:numberOrNull(get('school')),scc:numberOrNull(get('scc')),declined:finalDeclined??initialDeclined,declinedIsInitial:finalDeclined===null&&initialDeclined!==null,unresolved:numberOrNull(get('unresolved')),decision:String(get('decision')??'').trim(),source:parseWorkbookSource(row['Workbook Source JSON'])};
+ const requested=sumPresent(base,non)??request;
+ return {year,unit:String(get('unit')??'').trim(),request:String(get('original')||get('revised')||'').trim(),category:String(get('category')??'').trim(),requested,requestFunding:requestFunding(row,requested),provost:sumPresent(provostBase,provostNon),provostBase,provostNon,school:numberOrNull(get('school')),scc:numberOrNull(get('scc')),declined:finalDeclined??initialDeclined,declinedIsInitial:finalDeclined===null&&initialDeclined!==null,unresolved:numberOrNull(get('unresolved')),decision:String(get('decision')??'').trim(),source:parseWorkbookSource(row['Workbook Source JSON'])};
+}
+// Request-side funding offices are independent of approved funding and HQ decisions.
+export function requestFunding(row,total){
+ const dean=numberOrNull(row['SoE Non-recurring (non-base) - SoE']),provost=sumPresent(numberOrNull(row['Provost Recurring (base) - SoE']),numberOrNull(row['Provost Non-recurring (non-base) - SoE'])),scc=numberOrNull(row['SCC Non-recurring (non-base) - SoE request']);
+ const parts=[dean,provost,scc],assigned=sumPresent(...parts),unassigned=total===null?null:Math.round((total-(assigned??0))*100)/100;
+ return {dean,provost,scc,assigned,total,unassigned};
+}
+export function sumRequestFunding(lines){
+ const items=lines.map(l=>l.request_funding||{total:l.requested??null,dean:null,provost:null,scc:null,assigned:null,unassigned:l.requested??null}),sum=k=>{const xs=items.map(i=>i[k]).filter(v=>typeof v==='number'&&Number.isFinite(v));return xs.length?Math.round(xs.reduce((a,b)=>a+b,0)*100)/100:null;};
+ return {dean:sum('dean'),provost:sum('provost'),scc:sum('scc'),assigned:sum('assigned'),total:sum('total'),unassigned:sum('unassigned'),incomplete:items.filter(i=>i.unassigned===null||Math.abs(i.unassigned)>.005).length};
 }
 export function totals(rows){return Object.fromEntries(['requested','provost','provostBase','provostNon','school','scc','declined','unresolved'].map(key=>{const present=rows.map(row=>row[key]).filter(v=>typeof v==='number'&&Number.isFinite(v));return [key,{amount:present.length?present.reduce((a,b)=>a+b,0):null,recorded:present.length,total:rows.length}];}));}
 export function groupForUnit(unit){const key=String(unit).trim().toLowerCase();return academicUnits.has(key)?'Academic units':otherUnits.has(key)?'Other units':'Combined or unclassified';}

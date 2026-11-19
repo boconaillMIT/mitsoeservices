@@ -2,7 +2,7 @@ import access from './access.cjs';
 import {qbRequest} from './nimbus-store.mjs';
 const TABLE='br8dehttq';
 const LABELS=['Budget Fiscal Year','Department','Original Request Description','Revised Request Description','Request Nimbus category','Request Amount','Recurring (base) - DLC','Non-recurring (non-base) - DLC','Provost Recurring (base) - Approved','Provost Non-recurring (non-base) - Approved','SoE Non-recurring (non-base) - SoE_Approved','Declined','Declined Final','Historical allocation - funder unresolved','Status of Initial Request'];
-const OPTIONAL=['SCC Non-recurring (non-base) - Approved','Workbook Source JSON'];
+const OPTIONAL=['SCC Non-recurring (non-base) - Approved','Workbook Source JSON','Provost Recurring (base) - SoE','Provost Non-recurring (non-base) - SoE','SoE Non-recurring (non-base) - SoE','SCC Non-recurring (non-base) - SoE request'];
 const safeValue=value=>{if(value===null||value===undefined)return null;if(typeof value==='number'||typeof value==='boolean')return value;return String(value).slice(0,2000);};
 async function getFields(){const response=await fetch(`https://api.quickbase.com/v1/fields?tableId=${TABLE}`,{headers:{'QB-Realm-Hostname':'mit.quickbase.com',Authorization:`QB-USER-TOKEN ${process.env.NIMBUS_QB_TOKEN}`},signal:AbortSignal.timeout(15000)});if(!response.ok)throw Error('Quickbase field metadata unavailable.');const data=await response.json();const result=Array.isArray(data)?data:data.fields;if(!Array.isArray(result)||!result.length)throw Error('Quickbase field metadata missing.');return result;}
 export async function loadBudgetRecords({fields=getFields,query=qbRequest}={}){
