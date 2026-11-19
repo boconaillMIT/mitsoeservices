@@ -4,7 +4,7 @@ function mainNavigation({manage=false,schoolAdmin=false,schoolAccess=schoolAdmin
  if(!visibility.compactUnits&&(visibility.other??schoolAccess))links.push(['other','/other-units','Other units']);
  if(schoolAccess)links.push(['hq','/soe-hq','SoE HQ'],['budget','/soe-hq/budget','Budget','hq'],['budget-fy28','/soe-hq/budget/fy28','FY28 budget cycle','hq-2'] );
  if(schoolAdmin&&schoolAccess)links.push(['budget-sources','/soe-hq/budget-sources','Workbook sources & needs','hq-2']);
- if(schoolAccess)links.push(['rct-review','/soe-hq/rct-review','RCT review','hq']);
+ if(visibility.rct??schoolAdmin)links.push(['rct-review','/soe-hq/rct-review','RCT review',schoolAccess?'hq':false]);
  if(schoolAdmin&&visibility.features?.nimbus!==false)links.push(['nimbus','/nimbus','Nimbus Search (under construction)']);
  if(schoolAccess){links.push(['settings','/settings','Settings']);if(manage)links.push(['settings-admin','/settings/manage-access','Manage access',true]);links.push(['automatic-reports','/settings/automatic-reports','Automatic reports',true]);}
  if(schoolAdmin)links.push(['visibility','/settings/visibility','Resource visibility',true],['security-review','/settings/security-review','Security review',true]);

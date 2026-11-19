@@ -23,7 +23,7 @@ async function authorize(event, {reader = auth.readSession, load = policy.loadPo
   const feature=features.featureFor(event);if(feature&&visible[feature]===false)return {statusCode:403,headers:noStore,body:'This resource is temporarily unavailable for your access level.'};
   const managedScopes=policy.managedScopes(current.data,kerberos);
   const unitCount=Object.keys(units.ALL_UNITS).filter(s=>policy.effectiveRole(current.data,kerberos,s,'limited')).length;
-  const navigation={testView:view.active,academic:Object.keys(units.UNITS).some(s=>Boolean(policy.effectiveRole(current.data,kerberos,s,'limited'))),other:Object.keys(units.OTHER_UNITS).some(s=>Boolean(policy.effectiveRole(current.data,kerberos,s,'limited')))};
+  const navigation={testView:view.active,rct:Boolean(policy.effectiveRole(current.data,kerberos,'rct')),academic:Object.keys(units.UNITS).some(s=>Boolean(policy.effectiveRole(current.data,kerberos,s,'limited'))),other:Object.keys(units.OTHER_UNITS).some(s=>Boolean(policy.effectiveRole(current.data,kerberos,s,'limited')))};
   Object.assign(navigation,{unitCount,compactUnits:unitCount>0&&unitCount<=3,features:visible});
   return {user, kerberos, role, scope, audience, navigation, features:visible, testView:view.active, actualPolicy, schoolAccess:Boolean(policy.effectiveRole(current.data,kerberos,'school','full')), canWrite:policy.CAPABILITIES[role]>=2, admin:policy.effectiveRole(current.data,kerberos)==='admin',canManage:managedScopes.length>0,managedScopes,policy:current};
 }
