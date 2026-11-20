@@ -1,5 +1,9 @@
 const ROOT='/soe-hq/rct-review';
 export const DEFAULT_DEADLINE='2026-11-23T17:00';
+export function invitationSubject(subject,deadline=DEFAULT_DEADLINE){
+ deadlineText(deadline);const [date,time]=deadline.split('T'),[year,month,day]=date.split('-').map(Number),[hour,minute]=time.split(':').map(Number),stamp=new Date(Date.UTC(year,month-1,day)),weekday=new Intl.DateTimeFormat('en-US',{weekday:'long',timeZone:'UTC'}).format(stamp),monthName=new Intl.DateTimeFormat('en-US',{month:'short',timeZone:'UTC'}).format(stamp),ordinal=day%100>=11&&day%100<=13?'th':({1:'st',2:'nd',3:'rd'}[day%10]||'th'),clock=(hour%12||12)+(minute?':'+String(minute).padStart(2,'0'):'')+(hour>=12?'pm':'am');
+ return String(subject).replace(/\s*\(due [^)]*\)\s*$/i,'').trim()+' (due '+clock+' '+weekday+' '+monthName+' '+day+ordinal+')';
+}
 export function proposalLinks(record,origin){
  const root=new URL(ROOT,origin),id=encodeURIComponent(record.id),final=record.review.finalVersion;
  return {website:root.href+'?proposal='+id,pdf:root.href+(final&&final!=='original'?'/file?id='+id+'&version='+encodeURIComponent(final):'/proposal?id='+id),final:!!final,uploaded:!!final&&final!=='original'};

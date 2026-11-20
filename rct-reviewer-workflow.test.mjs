@@ -1,8 +1,8 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {emptyReview,validateReview} from './public/rct-model.mjs';import {REVIEWER_DIRECTORY,reviewerQueue,reviewerComplete} from './public/rct-reviewers.mjs';import {createRctHandler} from './src/rct-review.mjs';
 import {invitationDownload,invitationAttachment} from './src/rct-invitation-download.mjs';import {unzipSync,strFromU8} from 'fflate';import {REVIEWER_INVITATION_TEMPLATE} from './public/rct-batch-drafts.mjs';
-test('reviewer assignments accept only the three selected identities and retain legacy defaults',()=>{
+test('reviewer assignment keys validate while retaining legacy defaults',()=>{
  assert.deepEqual(validateReview(emptyReview()).assignments,[]);assert.deepEqual(validateReview({...emptyReview(),assignments:['hammond','dplata']}).assignments,['hammond','dplata']);
- for(const assignments of [['other'],['hamsa','hamsa'],'hamsa'])assert.throws(()=>validateReview({...emptyReview(),assignments}));
+ for(const assignments of [['bad/key'],['hamsa','hamsa'],'hamsa'])assert.throws(()=>validateReview({...emptyReview(),assignments}));
  assert.deepEqual(REVIEWER_DIRECTORY.slice(0,3).map(p=>p.email),['hammond@mit.edu','hamsa@mit.edu','dplata@mit.edu']);assert.equal(REVIEWER_DIRECTORY.find(p=>p.key==='oconaill').email,'oconaill@mit.edu');assert.deepEqual(validateReview({...emptyReview(),assignments:REVIEWER_DIRECTORY.map(p=>p.key)}).assignments,['hammond','hamsa','dplata','oconaill']);
 });
 test('personal queues show only assignments and completion follows the named reviewer score',()=>{

@@ -128,6 +128,14 @@ test('edited shared and reviewer comments retain previous text; stale clients ca
  const changed=await store.save(row().id,{...original,reviewers:original.reviewers.map((v,i)=>i? v:{...v,comments:'New comment'}),notesHistory:[]},'v1','reviewer');assert(changed.row.review.notesHistory.some(n=>n.text==='Hammond: Original reviewer comment'));
 });
 const MONEY_FIXTURE=['award','provost','evpt','school','department','pi','vpr'];
+test('older invitation pages cannot remove reviewers they could not display',async()=>{
+ const original={...emptyReview(),assignments:['hammond','email-example']};let f=transportFixture(original),store=createRctStore({transport:f.transport,table:'exampletable'});const old=await store.save(row().id,{...original,assignments:['hamsa']},'v1','example_editor');assert.deepEqual(old.row.review.assignments,['hamsa','email-example']);
+ f=transportFixture(original);store=createRctStore({transport:f.transport,table:'exampletable'});const current=await store.save(row().id,{...original,assignments:['hamsa']},'v1','example_editor',{knownReviewerKeys:['hammond','hamsa','email-example']});assert.deepEqual(current.row.review.assignments,['hamsa']);
+});
+test('legacy clients preserve extra reviewer scores and attribution, and exports expand safely past column Z',async()=>{
+ const original=emptyReview();original.reviewers.push({reviewerKey:'email-example',name:'Example Additional Reviewer',grade:'2',comments:'Retain the additional comment'});const validated=validateReview(original),f=transportFixture(validated),store=createRctStore({transport:f.transport,table:'exampletable'}),oldClient={...validated,reviewers:validated.reviewers.slice(0,6)};const saved=await store.save(row().id,oldClient,'v1','example_editor');assert.equal(saved.row.review.reviewers.length,7);assert.deepEqual(saved.row.review.reviewers[6],validated.reviewers[6]);assert.equal(saved.row.review.commentStamps.reviewers.length,7);
+ const output=unzipSync(exportReviews(template(),[{...row(),review:saved.row.review}])),details=strFromU8(output['xl/worksheets/rct-review-details.xml']);assert.match(details,/Reviewer 7/);assert.match(details,/Example Additional Reviewer/);assert.match(details,/Retain the additional comment/);assert.match(details,/A1:AA2/);
+});
 test('legacy review saves preserve assignments set by an inviter',async()=>{
  const original={...emptyReview(),assignments:['hammond','hamsa']},f=transportFixture(original),store=createRctStore({transport:f.transport,table:'exampletable'});const {assignments,...oldClient}=original;const saved=await store.save(row().id,oldClient,'v1','reviewer');assert.deepEqual(saved.row.review.assignments,assignments);
 });
