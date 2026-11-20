@@ -50,6 +50,7 @@ source snapshots and receipts stay in ignored `.runtime/`; real documents and
 financial data must not be added to tests or committed as public assets.
 
 Review improvements (November 2026):
+- Proposal actions remain visible while scrolling. The primary PDF link follows the saved final proposal, with the original retained in Proposal versions. RCT writers can prepare editable reviewer invitation emails with a proposal-specific website link, the saved PDF link, and an Eastern-time deadline picker defaulting to November 23, 2026 at 5pm. The Dean recipient option uses “We would appreciate” instead of “Dean Hammond would appreciate.” Email drafts open in the sender’s mail app; no email is sent and no access is granted by the site.
 - Six reviewer slots: Hammond, Balakrishnan, Plata, Solomon, and two self-named reviewers. Need priority rankings are 1 (highest priority) through 5 (lowest priority), or blank, with separate comments. The existing internal `grade` storage key is retained so saved scores are unchanged.
 - Overall priority is an optional positive integer (1 is highest). Graduate-student funding is unknown until the checkbox is set; saved false remains distinct from unknown.
 - Central funding always calculates Provost and EVPT at a rounded third of the proposed award, or the requested total when no award is entered. The former manual central-funding mode is retired. School target is one sixth; School, department and PI amounts remain explicit editable contributions. The local residual absorbs rounding cents.

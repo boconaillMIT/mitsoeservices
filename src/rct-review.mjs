@@ -13,7 +13,7 @@ export function createRctHandler({authorize=access.authorize,store=createRctStor
  if(!['','data','proposal','source','export','versions','file','attachments','attachment'].includes(action))return json(404,{error:'Page not found.'});
  const write=event.httpMethod==='POST'&&['data','versions','attachments'].includes(action);if(event.httpMethod!=='GET'&&!write)return json(405,{error:'Method not allowed.'});
  const auth=await authorize(event,{scope:'rct',minimum:write?'write':'read'});
- if(!auth.user){if(!action&&auth.statusCode===401)return {statusCode:302,headers:{...headers,Location:'/.netlify/functions/auth-login?returnTo='+encodeURIComponent(ROOT)},body:''};return auth;}
+ if(!auth.user){if(!action&&auth.statusCode===401)return {statusCode:302,headers:{...headers,Location:'/.netlify/functions/auth-login?returnTo='+encodeURIComponent(ROOT+(/^FY27-RCT2\|[a-z-]{1,40}$/.test(event.queryStringParameters?.proposal||'')?'?proposal='+encodeURIComponent(event.queryStringParameters.proposal):''))},body:''};return auth;}
  if(write){const h=Object.fromEntries(Object.entries(event.headers||{}).map(([k,v])=>[k.toLowerCase(),v]));if(!process.env.APP_ORIGIN||h.origin!==process.env.APP_ORIGIN||h['content-type']?.split(';')[0].trim()!=='application/json')return json(403,{error:'Same-origin JSON required.'});if(typeof event.body!=='string'||event.body.length>(['versions','attachments'].includes(action)?4200000:70000))return json(413,{error:'Review is too large.'});
   if(['versions','attachments'].includes(action)){
    const attachment=action==='attachments',documents=attachment?attachments:versions;
