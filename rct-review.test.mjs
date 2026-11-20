@@ -86,9 +86,9 @@ function template(){const cells=(r)=>'ABCDEFGHIJKLMNOPQRSTUV'.split('').map(c=>`
 test('RCT Excel maps all 11 proposals, preserves styles, removes links and recalculates local formulas',()=>{
  const rows=Array.from({length:11},(_,i)=>({...row(),id:'FY27-RCT2|fake-'+i,source:{...source,pi:'Example '+String(i).padStart(2,'0'),order:i},review:{...emptyReview(),award:i===0?0:100,school:i===0?null:40,provost:i===0?null:60,decision:'Support',notes:'=NOT_A_FORMULA & <text>'}}));
  const zip=unzipSync(exportReviews(template(),rows)),sheet=strFromU8(zip['xl/worksheets/sheet1.xml']);
- assert.match(sheet,/<dimension ref="A2:V19"/);assert.match(sheet,/<c r="B18"[^>]*t="inlineStr">[\s\S]*?Example 10/);assert.match(sheet,/<c r="G8"[^>]*><v>0<\/v>/);assert.match(sheet,/<c r="H8"[^>]*><f>ROUND\(IF\(G8="",E8,G8\)\/3,2\)<\/f><v>0<\/v>/);
- assert.match(sheet,/IF\(G18="",E18,G18\)-SUM\(H18:L18\)/);assert.match(sheet,/Calculation basis/);assert.doesNotMatch(sheet,/VPR/);assert.match(sheet,/COUNTA\(B8:B18\)/);assert.match(sheet,/=NOT_A_FORMULA &amp; &lt;text&gt;/);
- assert.match(strFromU8(zip['xl/workbook.xml']),/name="Review details"/);assert.match(strFromU8(zip['xl/worksheets/rct-review-details.xml']),/Overall priority/);assert.match(strFromU8(zip['xl/worksheets/rct-review-details.xml']),/Need priority \(1 highest, 5 lowest\)/);assert.equal(strFromU8(zip['xl/styles.xml']),'unchanged style');assert.ok(!Object.keys(zip).some(k=>k.includes('externalLinks')||k.includes('calcChain')));assert.ok(!strFromU8(zip['xl/tables/table1.xml']).includes('calculatedColumnFormula'));assert.match(strFromU8(zip['xl/tables/table1.xml']),/A7:V18/);
+ assert.match(sheet,/<dimension ref="A2:Z19"/);assert.match(sheet,/<c r="B18"[^>]*t="inlineStr">[\s\S]*?Example 10/);assert.match(sheet,/<c r="G8"[^>]*><v>0<\/v>/);assert.match(sheet,/<c r="H8"[^>]*><f>ROUND\(IF\(G8="",E8,G8\)\/3,2\)<\/f><v>0<\/v>/);
+ assert.match(sheet,/IF\(G18="",E18,G18\)-SUM\(H18:L18,W18\)/);assert.match(sheet,/Calculation basis/);assert.doesNotMatch(sheet,/VPR/);assert.match(sheet,/COUNTA\(B8:B18\)/);assert.match(sheet,/=NOT_A_FORMULA &amp; &lt;text&gt;/);
+ assert.match(strFromU8(zip['xl/workbook.xml']),/name="Review details"/);assert.match(strFromU8(zip['xl/worksheets/rct-review-details.xml']),/Overall priority/);assert.match(strFromU8(zip['xl/worksheets/rct-review-details.xml']),/Need priority \(1 highest, 5 lowest\)/);assert.equal(strFromU8(zip['xl/styles.xml']),'unchanged style');assert.ok(!Object.keys(zip).some(k=>k.includes('externalLinks')||k.includes('calcChain')));assert.ok(!strFromU8(zip['xl/tables/table1.xml']).includes('calculatedColumnFormula'));assert.match(strFromU8(zip['xl/tables/table1.xml']),/A7:Z18/);
 });
 test.before(()=>{process.env.APP_ORIGIN='https://example.test';});
 
@@ -157,4 +157,24 @@ test('API calculates thirds immediately from the requested total without creatin
 test('new saves preserve retired VPR values for history but exclude them from assigned funding',async()=>{
  const initial={...emptyReview(),vpr:999,notes:'Keep this note'},fixture=transportFixture(initial),store=createRctStore({transport:fixture.transport,table:'exampletable'});
  const saved=await store.save(row().id,{...emptyReview(),vpr:0,award:120,school:40,notes:'Keep this note'},'v1','reviewer');assert.equal(saved.row.review.vpr,999);assert.equal(saved.row.review.notes,'Keep this note');assert.equal(fundingSummary(saved.row.review,source).assigned,120);assert.equal(fundingSummary(saved.row.review,source).complete,false);
+});
+
+test('named local funders preserve old reviews, validate names and include Other in totals',()=>{
+ const old=emptyReview();delete old.other;delete old.fundingLabels;const migrated=validateReview(old);assert.equal(migrated.other,null);assert.deepEqual(migrated.fundingLabels,{department:'Department',pi:'PI',other:'Other'});
+ const r=validateReview({...emptyReview(),award:120,school:10,department:10,pi:10,other:10,fundingLabels:{department:' CEE ',pi:'Architecture',other:'Partner'},decision:'Support'});
+ assert.equal(r.fundingLabels.department,'CEE');assert.equal(fundingSummary(fundingReview(r,source),source).assigned,120);assert.equal(fundingSummary(r,source).local,40);
+ for(const labels of [{department:''},{school:'Different'},{department:'x'.repeat(61)},{department:'a\nb'},[]])assert.throws(()=>validateReview({...r,fundingLabels:labels}));
+});
+test('named funding rollups follow the contributor across different local slots',()=>{
+ const a={...row(),review:{...emptyReview(),award:120,decision:'Support',department:10,other:0,fundingLabels:{department:'CEE',pi:'PI',other:'Partner'}}};
+ const b={...row(),id:'FY27-RCT2|second',review:{...emptyReview(),award:120,decision:'Support',pi:20,fundingLabels:{department:'Department',pi:'cee',other:'Other'}}};
+ const result=commitmentView([a,b]);assert.equal(result.total.amounts['contributor:cee'].total,30);assert.equal(result.total.amounts['contributor:cee'].entered,2);assert.equal(result.total.amounts['contributor:partner'].total,0);assert.equal(result.localFunders.filter(f=>f.key==='contributor:cee').length,1);
+});
+test('clients without new funding fields preserve saved names and Other amounts',async()=>{
+ const initial={...emptyReview(),other:7,fundingLabels:{department:'CEE',pi:'Architecture',other:'Partner'}};const f=transportFixture(initial);const store=createRctStore({transport:f.transport,table:'exampletable'});const oldClient=emptyReview();delete oldClient.other;delete oldClient.fundingLabels;
+ const saved=await store.save(row().id,oldClient,'v1','reviewer');assert.equal(saved.row.review.other,7);assert.deepEqual(saved.row.review.fundingLabels,initial.fundingLabels);
+});
+test('Excel retains contributor names and Other amount without moving note columns',()=>{
+ const review={...emptyReview(),award:120,decision:'Support',school:10,department:10,pi:10,other:10,fundingLabels:{department:'CEE',pi:'Architecture',other:'Partner <A>'}};
+ const zip=unzipSync(exportReviews(template(),[{...row(),review}])),sheet=strFromU8(zip['xl/worksheets/sheet1.xml']);assert.match(sheet,/<c r="W8"[^>]*><v>10<\/v>/);assert.match(sheet,/<c r="X8"[^>]*[\s\S]*?CEE/);assert.match(sheet,/Architecture/);assert.match(sheet,/Partner &lt;A&gt;/);assert.match(sheet,/COUNT\(J8:L8,W8\)/);assert.match(sheet,/SUM\(H8:L8,W8\)/);assert.match(sheet,/<c r="S8"/);
 });

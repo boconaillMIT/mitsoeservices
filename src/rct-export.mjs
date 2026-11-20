@@ -1,7 +1,7 @@
 import {unzipSync,zipSync,strFromU8,strToU8} from 'fflate';
-import {FUNDING,fundingSummary,fundingReview,sortProposals,validateReview} from './rct-model.mjs';
+import {FUNDING,fundingName,fundingSummary,fundingReview,sortProposals,validateReview} from './rct-model.mjs';
 const xml=v=>String(v).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-const cols='ABCDEFGHIJKLMNOPQRSTUV'.split('');
+const cols='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 // Retain the provided workbook's styles and table, replacing external links with
 // source values and local, editable funding formulas. Unset amounts remain blank.
 export function exportReviews(template,records){
@@ -10,7 +10,7 @@ export function exportReviews(template,records){
  const zip=unzipSync(new Uint8Array(template)),sheetPath='xl/worksheets/sheet1.xml';
  let sheet=strFromU8(zip[sheetPath]);const originalRows=[...sheet.matchAll(/<row\b[^>]*\br="(\d+)"[^>]*>[\s\S]*?<\/row>/g)],rowTemplate=originalRows.find(r=>r[1]==='8')?.[0],totals=originalRows.find(r=>r[1]==='18')?.[0];if(!rowTemplate||!totals)throw Error('Unexpected review template.');
  const styleOf=(row,col)=>new RegExp(`<c\\b[^>]*r="${col}\\d+"[^>]*\\bs="(\\d+)"`).exec(row)?.[1];
- const cell=(col,row,value,formula=null,base=rowTemplate)=>{const style=styleOf(base,col),attrs=`r="${col}${row}"${style?` s="${style}"`:''}`;
+ const cell=(col,row,value,formula=null,base=rowTemplate)=>{const style=styleOf(base,col)??styleOf(base,col==='W'?'L':['X','Y','Z'].includes(col)?'C':col),attrs=`r="${col}${row}"${style?` s="${style}"`:''}`;
   if(formula!==null)return `<c ${attrs}${value===null?' t="str"':''}><f>${xml(formula)}</f><v>${value===null?'':Number(value)}</v></c>`;
   if(value===null||value===undefined||value==='')return `<c ${attrs}/>`;
   if(typeof value==='number'){if(!Number.isFinite(value))throw Error('Invalid workbook amount.');return `<c ${attrs}><v>${value}</v></c>`;}
@@ -23,21 +23,23 @@ export function exportReviews(template,records){
   if(r[1]==='3')return `<row r="3">${cell('A',3,'Enter reviews in SoE HQ RCT review, or edit this standalone downloaded workbook.')}</row>`;
   if(r[1]==='4')return `<row r="4">${cell('A',4,'Download contains saved reviews. Offline Excel edits are not uploaded to the site.')}</row>`;
   if(r[1]==='5')return r[0].replace(/<c\b[^>]*r="B5"[\s\S]*?<\/c>/,cell('B',5,requested,`SUM(E${first}:E${last})`,r[0])).replace(/<c\b[^>]*r="E5"[\s\S]*?<\/c>/,cell('E',5,awards,`IF(COUNT(G${first}:G${last})=0,"",SUM(G${first}:G${last}))`,r[0])).replace(/<c\b[^>]*r="H5"[\s\S]*?<\/c>/,cell('H',5,records.length,`COUNTA(B${first}:B${last})`,r[0]));
-  if(r[1]==='7')return r[0].replace(/<c\b(?=[^>]*\br="M7")[^>]*(?:\/>|>[\s\S]*?<\/c>)/,cell('M',7,'Calculation basis',null,r[0])).replace(/<c\b(?=[^>]*\br="O7")[^>]*(?:\/>|>[\s\S]*?<\/c>)/,cell('O',7,'Provost + EVPT total',null,r[0]));
+  if(r[1]==='7'){let header=r[0];for(const [col,label]of Object.entries({K:'Local source 1 funded',L:'Local source 2 funded',M:'Calculation basis',N:'SoE + other local funding',O:'Provost + EVPT total'}))header=header.replace(new RegExp('<c\\b(?=[^>]*\\br="'+col+'7")[^>]*(?:\\/>|>[\\s\\S]*?<\\/c>)'),cell(col,7,label,null,r[0]));return header.replace('</row>',Object.entries({W:'Other funded',X:'Local source 1 name',Y:'Local source 2 name',Z:'Other source name'}).map(([col,label])=>cell(col,7,label,null,r[0])).join('')+'</row>');}
   return r[0];
  }).join('');
  const allValues=[];
  for(const [i,record]of records.entries()){
   const r=first+i,s=record.source,v=record.review,f=fundingSummary(v,s);
-  const values={A:s.area,B:s.pi,C:s.department,D:s.duration,E:s.requested,F:s.budgetTotal,G:v.award,...Object.fromEntries(FUNDING.map(([key,,col])=>[col,v[key]])),M:v.award===null?'Requested total':'Proposed award',N:f.local,O:Math.round(((v.provost??0)+(v.evpt??0))*100)/100,P:f.assigned,Q:f.unallocated,R:v.decision,S:v.notes,T:s.prior,U:s.budgetDifference,V:s.sourceNotes};allValues.push(values);
+  const values={A:s.area,B:s.pi,C:s.department,D:s.duration,E:s.requested,F:s.budgetTotal,G:v.award,...Object.fromEntries(FUNDING.map(([key,,col])=>[col,v[key]])),M:v.award===null?'Requested total':'Proposed award',N:f.local,O:Math.round(((v.provost??0)+(v.evpt??0))*100)/100,P:f.assigned,Q:f.unallocated,R:v.decision,S:v.notes,T:s.prior,U:s.budgetDifference,V:s.sourceNotes,X:fundingName(v,'department'),Y:fundingName(v,'pi'),Z:fundingName(v,'other')};allValues.push(values);
   const totalFormula=`IF(G${r}="",E${r},G${r})`;
-  const formulas={H:`ROUND(${totalFormula}/3,2)`,I:`ROUND(${totalFormula}/3,2)`,N:`IF(COUNT(J${r}:L${r})=0,"",SUM(J${r}:L${r}))`,O:`SUM(H${r}:I${r})`,P:`SUM(H${r}:L${r})`,Q:`${totalFormula}-SUM(H${r}:L${r})`};
+  const formulas={H:`ROUND(${totalFormula}/3,2)`,I:`ROUND(${totalFormula}/3,2)`,N:`IF(COUNT(J${r}:L${r},W${r})=0,"",SUM(J${r}:L${r},W${r}))`,O:`SUM(H${r}:I${r})`,P:`SUM(H${r}:L${r},W${r})`,Q:`${totalFormula}-SUM(H${r}:L${r},W${r})`};
   rows+=`<row r="${r}" ht="100" customHeight="1">${cols.map(c=>cell(c,r,values[c],formulas[c]??null)).join('')}</row>`;
  }
- rows+=`<row r="${total}" ht="24" customHeight="1">${cols.map(c=>{if(c==='A')return cell(c,total,'TOTALS',null,totals);if('EFGHIJKLNOPQU'.includes(c)){const nums=allValues.map(v=>v[c]).filter(v=>typeof v==='number'),n=nums.length?Math.round(nums.reduce((a,b)=>a+b,0)*100)/100:null;return cell(c,total,n,`IF(COUNT(${c}${first}:${c}${last})=0,"",SUM(${c}${first}:${c}${last}))`,totals);}return cell(c,total,null,null,totals);}).join('')}</row>`;
- sheet=sheet.replace(/<sheetData>[\s\S]*?<\/sheetData>/,`<sheetData>${rows}</sheetData>`).replace(/<dimension ref="[^"]*"\/>/,`<dimension ref="A2:V${total}"/>`).replace(/Q11:Q17/g,`Q11:Q${last}`).replace(/U11:U17/g,`U11:U${last}`);
+ rows+=`<row r="${total}" ht="24" customHeight="1">${cols.map(c=>{if(c==='A')return cell(c,total,'TOTALS',null,totals);if('EFGHIJKLNOPQUW'.includes(c)){const nums=allValues.map(v=>v[c]).filter(v=>typeof v==='number'),n=nums.length?Math.round(nums.reduce((a,b)=>a+b,0)*100)/100:null;return cell(c,total,n,`IF(COUNT(${c}${first}:${c}${last})=0,"",SUM(${c}${first}:${c}${last}))`,totals);}return cell(c,total,null,null,totals);}).join('')}</row>`;
+ sheet=sheet.replace(/<sheetData>[\s\S]*?<\/sheetData>/,`<sheetData>${rows}</sheetData>`).replace(/<dimension ref="[^"]*"\/>/,`<dimension ref="A2:Z${total}"/>`).replace(/Q11:Q17/g,`Q11:Q${last}`).replace(/U11:U17/g,`U11:U${last}`).replace('</cols>','<col min="23" max="23" width="20" customWidth="1"/><col min="24" max="26" width="24" customWidth="1"/></cols>');
  zip[sheetPath]=strToU8(sheet);
- let table=strFromU8(zip['xl/tables/table1.xml']).replace(/ref="A7:V17"/g,`ref="A7:V${last}"`).replace(/<calculatedColumnFormula>[\s\S]*?<\/calculatedColumnFormula>/g,'');table=table.replace(/name="VPR[^"]*"/gi,'name="Calculation basis"').replace(/name="Central[^"]*"/gi,'name="Provost + EVPT total"');zip['xl/tables/table1.xml']=strToU8(table);
+ let table=strFromU8(zip['xl/tables/table1.xml']).replace(/ref="A7:V17"/g,`ref="A7:Z${last}"`).replace(/<calculatedColumnFormula>[\s\S]*?<\/calculatedColumnFormula>/g,'');table=table.replace(/name="VPR[^"]*"/gi,'name="Calculation basis"').replace(/name="Central[^"]*"/gi,'name="Provost + EVPT total"');
+ for(const [id,label]of Object.entries({11:'Local source 1 funded',12:'Local source 2 funded',14:'SoE + other local funding'}))table=table.replace(new RegExp('(<tableColumn\\b(?=[^>]*\\bid="'+id+'")[^>]*\\bname=")[^"]*(")'),(_,a,b)=>a+label+b);
+ table=table.replace(/<tableColumns count="22">/,'<tableColumns count="26">').replace('</tableColumns>','<tableColumn id="23" name="Other funded"/><tableColumn id="24" name="Local source 1 name"/><tableColumn id="25" name="Local source 2 name"/><tableColumn id="26" name="Other source name"/></tableColumns>');zip['xl/tables/table1.xml']=strToU8(table);
  zip['xl/workbook.xml']=strToU8(strFromU8(zip['xl/workbook.xml']).replace(/<externalReferences>[\s\S]*?<\/externalReferences>/,'').replace(/<calcPr\b[^>]*\/>/,'<calcPr calcId="191029" fullCalcOnLoad="1" forceFullCalc="1"/>'));
  zip['xl/_rels/workbook.xml.rels']=strToU8(strFromU8(zip['xl/_rels/workbook.xml.rels']).replace(/<Relationship\b[^>]*Type="[^"]*\/(externalLink|calcChain)"[^>]*\/>/g,''));
  zip['[Content_Types].xml']=strToU8(strFromU8(zip['[Content_Types].xml']).replace(/<Override\b[^>]*PartName="\/xl\/(externalLinks\/[^"\s]+|calcChain.xml)"[^>]*\/>/g,''));

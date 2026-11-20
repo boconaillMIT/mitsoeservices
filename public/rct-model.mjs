@@ -1,11 +1,15 @@
 export const ROUND='FY27-RCT2';
-export const FUNDING=[['provost','Provost funded','H'],['evpt','EVPT funded','I'],['school','SoE funded','J'],['department','Department funded','K'],['pi','PI funded','L']];
+export const FUNDING=[['provost','Provost funded','H'],['evpt','EVPT funded','I'],['school','SoE funded','J'],['department','Local source 1 funded','K'],['pi','Local source 2 funded','L'],['other','Other funded','W']];
+export const LOCAL_LABELS={department:'Department',pi:'PI',other:'Other'};
+export const fundingName=(review,key)=>review.fundingLabels?.[key]||LOCAL_LABELS[key]||({school:'SoE',provost:'Provost',evpt:'EVPT'}[key]);
+export const localFundingEntries=review=>Object.keys(LOCAL_LABELS).map(key=>({key,label:fundingName(review,key),value:review[key]??null}));
+export const localFundingTitle=review=>['SoE',...localFundingEntries(review).map(x=>x.label)].join(' / ');
 export const MONEY=['award',...FUNDING.map(([key])=>key)];
 export const REVIEWERS=['Hammond','Balakrishnan','Plata','Solomon','',''];
-export const emptyReview=()=>({...Object.fromEntries(MONEY.map(k=>[k,null])),decision:'',notes:'',reviewers:REVIEWERS.map(name=>({name,grade:'',comments:''})),priority:null,gradStudents:null,autoCentral:true,vpr:null,notesHistory:[],finalVersion:null});
+export const emptyReview=()=>({...Object.fromEntries(MONEY.map(k=>[k,null])),fundingLabels:{...LOCAL_LABELS},decision:'',notes:'',reviewers:REVIEWERS.map(name=>({name,grade:'',comments:''})),priority:null,gradStudents:null,autoCentral:true,vpr:null,notesHistory:[],finalVersion:null});
 export function centralThirds(award){const third=Math.round(award*100/3)/100;return {provost:third,evpt:third,local:Math.round((award-2*third)*100)/100,schoolTarget:Math.round(award*100/6)/100};}
 // VPR and the former manual-central flag are accepted for old saved records only.
-// Funding always uses the five active sources and fixed central thirds.
+// Funding always uses the six active sources and fixed central thirds.
 export const fundingTotal=(review,source)=>review.award??source?.requested??null;
 export function fundingReview(review,source){const total=fundingTotal(review,source),thirds=total===null?null:centralThirds(total);return {...review,autoCentral:true,provost:thirds?.provost??null,evpt:thirds?.evpt??null};}
 export function departmentInfo(source){
@@ -15,8 +19,9 @@ export function departmentInfo(source){
 }
 export function sortProposals(records){return [...records].sort((a,b)=>departmentInfo(a.source).number-departmentInfo(b.source).number||departmentInfo(a.source).label.localeCompare(departmentInfo(b.source).label)||a.source.pi.localeCompare(b.source.pi));}
 export function validateReview(value){
- if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>![...MONEY,'vpr','decision','notes','reviewers','priority','gradStudents','autoCentral','notesHistory','finalVersion'].includes(k)))throw Error('Invalid review fields.');
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>![...MONEY,'fundingLabels','vpr','decision','notes','reviewers','priority','gradStudents','autoCentral','notesHistory','finalVersion'].includes(k)))throw Error('Invalid review fields.');
  const result=emptyReview();
+ if(value.fundingLabels!==undefined){const labels=value.fundingLabels;if(!labels||typeof labels!=='object'||Array.isArray(labels)||Object.keys(labels).some(k=>!Object.hasOwn(LOCAL_LABELS,k)))throw Error('Invalid funding names.');for(const key of Object.keys(LOCAL_LABELS)){const label=labels[key];if(label===undefined)continue;if(typeof label!=='string'||!label.trim()||label.length>60||/[\x00-\x1f\x7f]/.test(label))throw Error('Funding names must contain 1 to 60 characters.');result.fundingLabels[key]=label.trim();}}
  for(const key of [...MONEY,'vpr']){const v=value[key];if(v===null||v===''||v===undefined)continue;if(typeof v!=='number'||!Number.isFinite(v)||v<0||v>100000000||Math.abs(v*100-Math.round(v*100))>0.00001)throw Error('Amounts must be nonnegative numbers with at most two decimal places.');result[key]=v;}
  for(const [key,max]of [['decision',100],['notes',15000]]){if(typeof value[key]!=='string'||value[key].length>max||/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(value[key]))throw Error('Invalid '+key+'.');result[key]=value[key];}
  if(value.priority!==undefined&&value.priority!==null&&(!Number.isInteger(value.priority)||value.priority<1||value.priority>1000))throw Error('Priority must be a whole number from 1 to 1000.');
@@ -31,8 +36,8 @@ export function validateReview(value){
 const sum=(r,keys)=>Math.round(keys.reduce((s,k)=>s+(r[k]??0),0)*100)/100;
 export function fundingSummary(r,source){
  const total=fundingTotal(r,source);
- const assigned=MONEY.slice(1).some(k=>r[k]!==null)?sum(r,MONEY.slice(1)):null;
- const local=['school','department','pi'].some(k=>r[k]!==null)?sum(r,['school','department','pi']):null;
+ const assigned=MONEY.slice(1).some(k=>Number.isFinite(r[k]))?sum(r,MONEY.slice(1)):null;
+ const local=['school','department','pi','other'].some(k=>Number.isFinite(r[k]))?sum(r,['school','department','pi','other']):null;
  return {assigned,local,central:total===null?null:Math.round((total-(local??0))*100)/100,unallocated:total===null?null:Math.round((total-(assigned??0))*100)/100,
  complete:Boolean(['supported','declined'].includes(decisionState(r.decision))&&r.award!==null&&Math.abs(r.award-(assigned??0))<0.005&&(decisionState(r.decision)!=='declined'||r.award===0))};
 }
@@ -41,8 +46,11 @@ const cents=n=>Math.round(n*100);
 export function commitmentView(records,{scope='supported',groupBy='proposal'}={}){
  if(!['supported','all','undecided','declined'].includes(scope)||!['proposal','department','school'].includes(groupBy))throw Error('Invalid funding view.');
  records=records.map(r=>({...r,review:fundingReview(r.review,r.source)}));
- const selected=records.filter(r=>scope==='all'||decisionState(r.review.decision)===scope),columns=['requested',...MONEY,'assigned','unallocated'];
+ const selected=records.filter(r=>scope==='all'||decisionState(r.review.decision)===scope),columns=['requested',...MONEY,'assigned','unallocated','local'];
+ const names=new Map();for(const record of selected)for(const entry of localFundingEntries(record.review))if(entry.value!==null||entry.label!==LOCAL_LABELS[entry.key]){const key='contributor:'+entry.label.toLowerCase();if(!names.has(key))names.set(key,{key,label:entry.label});}
+ const localFunders=[...names.values()].sort((a,b)=>a.label.localeCompare(b.label));
  const aggregate=rows=>{const amounts={};for(const key of columns){const values=rows.map(r=>key==='requested'?r.source.requested:MONEY.includes(key)?r.review[key]:fundingSummary(r.review,r.source)[key]).filter(v=>typeof v==='number'&&Number.isFinite(v));amounts[key]={total:values.length?values.reduce((n,v)=>n+cents(v),0)/100:null,entered:values.length,count:rows.length};}return {count:rows.length,amounts,complete:rows.filter(r=>fundingSummary(r.review,r.source).complete).length};};
  const groups=new Map();for(const row of selected){const label=String(groupBy==='proposal'?row.source.pi:groupBy==='school'?row.source.area:row.source.department).replace(/\s+/g,' ').trim()||'Not specified',key=groupBy==='proposal'?row.id:label;if(!groups.has(key))groups.set(key,{key,label,records:[]});groups.get(key).records.push(row);}
- return {scope,groupBy,selected:selected.length,excluded:records.length-selected.length,rows:[...groups.values()].map(g=>({key:g.key,label:g.label,...aggregate(g.records),proposalIds:g.records.map(r=>r.id)})).sort((a,b)=>a.label.localeCompare(b.label)),total:aggregate(selected)};
+ const namedAggregate=rows=>{const result=aggregate(rows);for(const f of localFunders){const values=rows.map(r=>localFundingEntries(r.review).filter(e=>'contributor:'+e.label.toLowerCase()===f.key&&e.value!==null)).filter(entries=>entries.length).map(entries=>entries.reduce((n,e)=>n+cents(e.value),0));result.amounts[f.key]={total:values.length?values.reduce((a,b)=>a+b,0)/100:null,entered:values.length,count:rows.length};}return result;};
+ return {scope,groupBy,localFunders,selected:selected.length,excluded:records.length-selected.length,rows:[...groups.values()].map(g=>({key:g.key,label:g.label,...namedAggregate(g.records),proposalIds:g.records.map(r=>r.id)})).sort((a,b)=>a.label.localeCompare(b.label)),total:namedAggregate(selected)};
 }

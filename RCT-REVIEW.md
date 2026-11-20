@@ -23,8 +23,8 @@ and re-imported before exporting. Offline Excel changes do not update QuickBase.
 
 Only saved reviews are included in downloads. Unknown amounts stay blank and
 confirmed zero amounts stay numeric zero. Local support is School + Department +
-PI funding; central support needed is the proposed award less local support;
-assigned funding includes the five active funding sources. The page flags funding gaps
+PI and Other funding; central support needed is the proposed award less local support;
+assigned funding includes the six active funding sources. The page flags funding gaps
 and excess contributions while permitting draft reviews to be saved.
 
 Each proposal can also have a separately stored preliminary PDF review in source
@@ -60,3 +60,9 @@ Review improvements (November 2026):
 - Before releasing the separate-permission change, inspect the production policy. After publishing, preserve existing school Read/Write reviewers through explicit RCT grants without altering their finance grants. Never infer MIT logins from reviewer display names.
 
 Funding correction: Provost and EVPT are always calculated as a rounded third each. The proposed award is the calculation base when present (including zero); otherwise use the requested total. No award or support decision is inferred from that fallback. Only SoE, department and PI contributions are entered manually. VPR is excluded from active funding, UI, CSV and Excel calculations. Legacy stored VPR values remain preserved for compatibility and cannot be changed by new saves. M in the original Excel layout now describes the calculation basis, preserving all later note columns. Funding shortfalls and overages remain nonfatal warnings.
+
+## Named local funding contributors
+
+Provost, EVPT and SoE funding names remain fixed. Each proposal can independently rename the Department, PI and Other contribution fields. Names and amounts are saved together in the existing QuickBase Review JSON under the same revision checks. Old reviews retain their original Department and PI values and start with an empty Other amount. Older open forms cannot clear the new fields by omitting them.
+
+Local funding includes all four local slots. Funding commitments and CSV columns group named contributors across local slots, so a department entered in the former PI slot is not reported as PI funding. The workbook preview identifies each local contributor beside its amount. Excel retains the original note columns and appends Other funding and the three contributor names in W through Z; allocation formulas include Other funding. Retired VPR history remains preserved and excluded.
