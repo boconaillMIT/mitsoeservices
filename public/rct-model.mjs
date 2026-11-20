@@ -1,3 +1,4 @@
+import {REVIEWER_DIRECTORY} from './rct-reviewers.mjs';
 export const ROUND='FY27-RCT2';
 export const FUNDING=[['provost','Provost funded','H'],['evpt','EVPT funded','I'],['school','SoE funded','J'],['department','Local source 1 funded','K'],['pi','Local source 2 funded','L'],['other','Other funded','W']];
 export const LOCAL_LABELS={department:'Department',pi:'PI',other:'Other'};
@@ -6,9 +7,18 @@ export const localFundingEntries=review=>Object.keys(LOCAL_LABELS).map(key=>({ke
 export const localFundingTitle=review=>['SoE',...localFundingEntries(review).map(x=>x.label)].join(' / ');
 export const MONEY=['award',...FUNDING.map(([key])=>key)];
 export const REVIEWERS=['Hammond','Balakrishnan','Plata','Solomon','',''];
-export const emptyReview=()=>({...Object.fromEntries(MONEY.map(k=>[k,null])),fundingLabels:{...LOCAL_LABELS},commentStamps:{notes:null,reviewers:REVIEWERS.map(()=>null)},decision:'',notes:'',reviewers:REVIEWERS.map(name=>({name,grade:'',comments:''})),priority:null,gradStudents:null,autoCentral:true,vpr:null,notesHistory:[],finalVersion:null});
+export const emptyReview=()=>({...Object.fromEntries(MONEY.map(k=>[k,null])),fundingLabels:{...LOCAL_LABELS},commentStamps:{notes:null,reviewers:REVIEWERS.map(()=>null)},decision:'',notes:'',assignments:[],reviewers:REVIEWERS.map(name=>({name,grade:'',comments:''})),priority:null,gradStudents:null,autoCentral:true,vpr:null,notesHistory:[],finalVersion:null});
 export function commentStampText(stamp){return stamp?new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',dateStyle:'medium',timeStyle:'long'}).format(new Date(stamp.at))+' · '+stamp.by:'';}
 export const stampedComment=(text,stamp)=>text?(stamp?'Saved '+commentStampText(stamp)+'\n':'')+text:'';
+export function reviewerPriorityStats(review){
+ const scores=(review.reviewers||[]).filter(v=>typeof v.name==='string'&&v.name.trim()&&['1','2','3','4','5'].includes(v.grade)).map(v=>Number(v.grade));
+ const count=scores.length,sum=scores.reduce((a,b)=>a+b,0);return {count,sum,average:count?sum/count:null};
+}
+export function proposalPriorityStanding(records,id){
+ const scored=records.map(record=>({id:record.id,...reviewerPriorityStats(record.review)})).filter(s=>s.count),current=scored.find(s=>s.id===id);
+ if(!current)return {...reviewerPriorityStats({}),rank:null,scored:scored.length,tied:false};
+ return {...current,rank:1+scored.filter(s=>s.sum*current.count<current.sum*s.count).length,scored:scored.length,tied:scored.filter(s=>s.sum*current.count===current.sum*s.count).length>1};
+}
 export function centralThirds(award){const third=Math.round(award*100/3)/100;return {provost:third,evpt:third,local:Math.round((award-2*third)*100)/100,schoolTarget:Math.round(award*100/6)/100};}
 // VPR and the former manual-central flag are accepted for old saved records only.
 // Funding always uses the six active sources and fixed central thirds.
@@ -21,8 +31,9 @@ export function departmentInfo(source){
 }
 export function sortProposals(records){return [...records].sort((a,b)=>departmentInfo(a.source).number-departmentInfo(b.source).number||departmentInfo(a.source).label.localeCompare(departmentInfo(b.source).label)||a.source.pi.localeCompare(b.source.pi));}
 export function validateReview(value){
- if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>![...MONEY,'fundingLabels','commentStamps','vpr','decision','notes','reviewers','priority','gradStudents','autoCentral','notesHistory','finalVersion'].includes(k)))throw Error('Invalid review fields.');
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>![...MONEY,'fundingLabels','commentStamps','assignments','vpr','decision','notes','reviewers','priority','gradStudents','autoCentral','notesHistory','finalVersion'].includes(k)))throw Error('Invalid review fields.');
  const result=emptyReview();
+ if(value.assignments!==undefined){if(!Array.isArray(value.assignments)||value.assignments.length>3||new Set(value.assignments).size!==value.assignments.length||value.assignments.some(key=>!REVIEWER_DIRECTORY.some(p=>p.key===key)))throw Error('Invalid reviewer assignments.');result.assignments=[...value.assignments];}
  if(value.commentStamps!==undefined){const meta=value.commentStamps;const stamp=s=>{if(s===null)return null;if(!s||typeof s!=='object'||Array.isArray(s)||Object.keys(s).some(k=>!['by','at'].includes(k))||typeof s.by!=='string'||!s.by.trim()||s.by.length>100||/[\x00-\x1f\x7f]/.test(s.by)||typeof s.at!=='string'||!Number.isFinite(Date.parse(s.at)))throw Error('Invalid comment stamp.');return {by:s.by,at:s.at};};if(!meta||typeof meta!=='object'||Array.isArray(meta)||Object.keys(meta).some(k=>!['notes','reviewers'].includes(k))||!Array.isArray(meta.reviewers)||meta.reviewers.length!==6)throw Error('Invalid comment stamps.');result.commentStamps={notes:stamp(meta.notes),reviewers:meta.reviewers.map(stamp)};}
  if(value.fundingLabels!==undefined){const labels=value.fundingLabels;if(!labels||typeof labels!=='object'||Array.isArray(labels)||Object.keys(labels).some(k=>!Object.hasOwn(LOCAL_LABELS,k)))throw Error('Invalid funding names.');for(const key of Object.keys(LOCAL_LABELS)){const label=labels[key];if(label===undefined)continue;if(typeof label!=='string'||!label.trim()||label.length>60||/[\x00-\x1f\x7f]/.test(label))throw Error('Funding names must contain 1 to 60 characters.');result.fundingLabels[key]=label.trim();}}
  for(const key of [...MONEY,'vpr']){const v=value[key];if(v===null||v===''||v===undefined)continue;if(typeof v!=='number'||!Number.isFinite(v)||v<0||v>100000000||Math.abs(v*100-Math.round(v*100))>0.00001)throw Error('Amounts must be nonnegative numbers with at most two decimal places.');result[key]=v;}
@@ -31,7 +42,7 @@ export function validateReview(value){
  result.priority=value.priority??null;
  if(value.gradStudents!==undefined&&value.gradStudents!==null&&typeof value.gradStudents!=='boolean')throw Error('Invalid graduate-student flag.');result.gradStudents=value.gradStudents??null;
  if(value.autoCentral!==undefined&&typeof value.autoCentral!=='boolean')throw Error('Invalid funding mode.');result.autoCentral=true;
- if(value.reviewers!==undefined){if(!Array.isArray(value.reviewers)||value.reviewers.length!==6)throw Error('Six reviewer slots are required.');result.reviewers=value.reviewers.map((r,i)=>{if(!r||Object.keys(r).some(k=>!['name','grade','comments'].includes(k))||typeof r.name!=='string'||r.name.length>100||i<4&&r.name!==REVIEWERS[i]||typeof r.grade!=='string'||!['','1','2','3','4','5'].includes(r.grade)||typeof r.comments!=='string'||r.comments.length>6000||/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(r.name+r.grade+r.comments))throw Error('Invalid reviewer name, need priority ranking or comment.');if(!r.name.trim()&&(r.grade.trim()||r.comments.trim()))throw Error('Name the additional reviewer before adding a need priority ranking or comment.');return {...r};});}
+ if(value.reviewers!==undefined){if(!Array.isArray(value.reviewers)||value.reviewers.length!==6)throw Error('Six reviewer slots are required.');result.reviewers=value.reviewers.map((r,i)=>{if(!r||Object.keys(r).some(k=>!['name','grade','comments'].includes(k))||typeof r.name!=='string'||r.name.length>100||typeof r.grade!=='string'||!['','1','2','3','4','5'].includes(r.grade)||typeof r.comments!=='string'||r.comments.length>6000||/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(r.name+r.grade+r.comments))throw Error('Invalid reviewer name, need priority ranking or comment.');if(!r.name.trim()&&r.grade.trim())throw Error('Name the reviewer before adding a need priority ranking.');return {...r};});}
  if(value.notesHistory!==undefined){if(!Array.isArray(value.notesHistory)||value.notesHistory.some(n=>!n||typeof n.text!=='string'||n.text.length>15000||typeof n.by!=='string'||n.by.length>100||typeof n.at!=='string'||!Number.isFinite(Date.parse(n.at))))throw Error('Invalid note history.');result.notesHistory=value.notesHistory.map(n=>({text:n.text,by:n.by,at:n.at}));}
  if(value.finalVersion!==undefined&&value.finalVersion!==null&&value.finalVersion!=='original'&&!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value.finalVersion))throw Error('Invalid final proposal version.');result.finalVersion=value.finalVersion??null;
  return result;

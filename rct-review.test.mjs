@@ -128,6 +128,16 @@ test('edited shared and reviewer comments retain previous text; stale clients ca
  const changed=await store.save(row().id,{...original,reviewers:original.reviewers.map((v,i)=>i? v:{...v,comments:'New comment'}),notesHistory:[]},'v1','reviewer');assert(changed.row.review.notesHistory.some(n=>n.text==='Hammond: Original reviewer comment'));
 });
 const MONEY_FIXTURE=['award','provost','evpt','school','department','pi','vpr'];
+test('legacy review saves preserve assignments set by an inviter',async()=>{
+ const original={...emptyReview(),assignments:['hammond','hamsa']},f=transportFixture(original),store=createRctStore({transport:f.transport,table:'exampletable'});const {assignments,...oldClient}=original;const saved=await store.save(row().id,oldClient,'v1','reviewer');assert.deepEqual(saved.row.review.assignments,assignments);
+});
+test('clearing a reviewer name and score preserves comments and their earlier attribution',async()=>{
+ const original=emptyReview();original.reviewers[0]={name:'Hammond',grade:'2',comments:'Retain this reviewer comment'};
+ const f=transportFixture(original),store=createRctStore({transport:f.transport,table:'exampletable'});
+ const cleared={...original,reviewers:original.reviewers.map((v,i)=>i?v:{...v,name:'',grade:''})};
+ const saved=await store.save(row().id,cleared,'v1','example_editor');
+ assert.equal(saved.row.review.reviewers[0].name,'');assert.equal(saved.row.review.reviewers[0].grade,'');assert.equal(saved.row.review.reviewers[0].comments,'Retain this reviewer comment');assert(saved.row.review.notesHistory.some(n=>n.text==='Hammond: Retain this reviewer comment'));
+});
 test('department ordering uses MIT course numbers and keeps joint proposals together',()=>{
  const names=['Nuclear Science & Engineering','Chemical Engineering','Mechanical Engineering','EECS','Aeronautics and Astronautics','Civil and Environmental Engineering','Materials Science and Engineering','Civil and Environmental Engineering and Architecture'];
  const sorted=sortProposals(names.map((department,i)=>({...row(),id:String(i),source:{...source,department}})));assert.deepEqual(sorted.map(r=>departmentInfo(r.source).number),[1,1,2,3,6,10,16,22]);assert.equal(sorted.length,names.length);assert.match(departmentInfo(sorted[1].source).label,/Course 1 \/ 4/);
