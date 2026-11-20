@@ -52,7 +52,12 @@ export function recentBudgetOutcomes(all,key,year){
   const finalDeclines=rows.filter(r=>!r.declinedIsInitial),declined=sum(finalDeclines,'declined');
   const complete=rows.length>0&&rows.every(r=>Number.isFinite(r.requested)&&(funding(r)!==null||(!r.declinedIsInitial&&Number.isFinite(r.declined)))&&((funding(r)??0)+(r.declinedIsInitial?0:r.declined??0)>=r.requested));
   const outcome=!rows.length?'No record':!complete?'Outcome incomplete':approved>=requested?'Fully funded':approved>0?'Partially funded':'Not funded';
-  return {year,lines:rows.length,requested,school,approved,declined,outcome,complete,unpriced:rows.filter(r=>!Number.isFinite(r.requested)).length};
+  const requests=rows.map(r=>{
+   const awarded=funding(r),rejected=r.declinedIsInitial?null:r.declined??null;
+   const status=awarded>0?(Number.isFinite(r.requested)&&awarded>=r.requested?'Approved':'Partially approved'):rejected>0&&Number.isFinite(r.requested)&&rejected>=r.requested?'Rejected':r.decision==='Removed'?'Removed':r.decision==='Approved'?'Approved (initial)':rejected>0?'Partially rejected':'Not recorded';
+   return {description:String(r.revised||r.original||r.request||'Request').replace(/\s+/g,' ').trim(),requested:r.requested??null,approved:awarded,declined:rejected,status};
+  });
+  return {year,lines:rows.length,requested,school,approved,declined,outcome,complete,requests,unpriced:rows.filter(r=>!Number.isFinite(r.requested)).length};
  });
 }
 export function applyDecision(ask,dec){

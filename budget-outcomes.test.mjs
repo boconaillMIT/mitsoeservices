@@ -16,3 +16,9 @@ test('partial, full and incomplete funding remain distinct; all funders separate
  y=recentBudgetOutcomes([{...row,provost:65,declined:0}],'example',2028)[1];assert.equal(y.outcome,'Fully funded');
  y=recentBudgetOutcomes([row,{...row,requested:null}],'example',2028)[1];assert.equal(y.unpriced,1);assert.equal(y.outcome,'Outcome incomplete');
 });
+test('prior asks retain descriptions and distinguish rejection, removal and initial approval',()=>{
+ const row={unit_key:'example',year:2027,requested:100,original:'Example teaching coverage',school:null,declined:null};
+ const y=recentBudgetOutcomes([{...row,school:100},{...row,original:'Example equipment',declined:100,declinedIsInitial:false},{...row,original:'Example withdrawn request',decision:'Removed'},{...row,decision:'Approved',declined:100,declinedIsInitial:true}],'example',2028)[1];
+ assert.deepEqual(y.requests.map(r=>r.status),['Approved','Rejected','Removed','Approved (initial)']);
+ assert.equal(y.requests[0].description,'Example teaching coverage');assert.equal(y.requests[1].requested,100);assert.equal(y.requests[3].declined,null);
+});
