@@ -12,6 +12,8 @@ import {loadBudgetRecords,safeValue} from './budget-explorer.mjs';
 import {mapRecord,numberOrNull,sumRequestFunding} from '../public/budget-model.mjs';
 import {loadReserves} from './reserves.mjs';
 import {createBudgetHqStore,SECTION_LABEL} from './budget-hq-qb.mjs';
+import {authorizeBudget} from './budget-access.mjs';
+import budgetScopes from './budget-scopes.cjs';
 
 export const DECISIONS=['pending','decline','support'];
 const BRIEFING_UNITS={'x-neet':'NEET','x-mites':'MITES',lgo:'LGO',sdm:'SDM',gel:'TLC / GEL'};
@@ -104,8 +106,9 @@ export function createBudgetHqDataHandler({authorize=access.authorize,asks=loadA
   try{body=JSON.parse(event.body);}catch{return reply(400,{error:'Invalid JSON.'});}
  }
  const c=parseCycle(writing?body.cycle:q.cycle);if(!c)return reply(400,{error:'Unknown budget cycle.'});
- const auth=await authorize(event,{scope:'school',minimum:writing?'write':'read'});if(auth.statusCode)return auth;
- const ready=store.configured(),canEdit=ready&&(policy.CAPABILITIES[auth.role]||0)>=policy.CAPABILITIES.write;
+ const auth=await authorizeBudget(event,{authorize,writing,unit:writing?body.unit:q.unit});if(auth.statusCode)return auth;
+ const ready=store.configured(),canEdit=!auth.budgetRestricted&&ready&&(policy.CAPABILITIES[auth.role]||0)>=policy.CAPABILITIES.write;
+ if(auth.budgetRestricted&&!q.unit){if(q.format)return reply(403,{error:'Choose an authorized department before downloading.'});return reply(200,{cycle:c.cycle,year:c.year,restricted:true,can_edit:false,units:auth.budgetUnits.map(key=>({...unitInfo(key,[budgetScopes.BUDGET_UNITS[key]]),has_wallet:false}))});}
  let all,rows;try{all=await asks();rows=all.filter(a=>a.year===c.year);}catch(e){console.error('Budget HQ asks:',e.message);return reply(503,{error:'Budget requests are temporarily unavailable from QuickBase.'});}
  const byUnit=new Map();for(const a of rows){if(!byUnit.has(a.unit_key))byUnit.set(a.unit_key,[]);byUnit.get(a.unit_key).push(a);}
  const knownUnit=k=>typeof k==='string'&&/^[a-z0-9-]{1,60}$/.test(k)&&(byUnit.has(k)||(c.cycle==='fy28'&&Object.hasOwn(BRIEFING_UNITS,k))||(Object.hasOwn(units.ALL_UNITS,k)&&k!=='soe-fake'));
@@ -148,7 +151,13 @@ export function createBudgetHqDataHandler({authorize=access.authorize,asks=loadA
   let history=[];try{const past=all.filter(a=>a.unit_key===key&&a.year&&a.year<c.year);const ys=[...new Set(past.map(a=>a.year))].sort();
    history=ys.map(y=>{const g=past.filter(a=>a.year===y),s=k=>g.reduce((t,a)=>t+(a[k]??0),0);return {year:y,requested:r0(s('requested')),provost:r0(s('provost')),school:r0(s('school')),scc:r0(s('scc')),sources:past.filter(a=>a.year===y).map(a=>({description:a.revised||a.original||a.request,source:a.source})).filter(a=>a.source?.sources?.length),unresolved:r0(s('unresolved')),declined:r0(s('declined')),approved:r0(s('provost')+s('school')+s('scc')+s('unresolved'))};});}catch{}
   let snapshot=null;if(info.has_wallet&&auth.features?.wallets!==false){try{snapshot=await reserveSnapshot(key,{reserves});}catch(e){console.error('Budget HQ reserves:',e.message);}}
-  return reply(200,{cycle:c.cycle,year:c.year,unit:info,lines,totals:rollUp(lines),history,recent_budget_outcomes:recentBudgetOutcomes(all,key,c.year),reserves:snapshot,storage_ready:ready,can_edit:canEdit,
+  if(q.format==='csv'){
+   const cell=v=>v===null||v===undefined?'':'"'+String(typeof v==='string'&&/^\s*[=+@-]/.test(v)?"'"+v:v).replace(/"/g,'""')+'"';
+   const columns=['Unit','Record ID','Description','Requested','Asked of Dean / SoE','Asked of Provost','Asked of SCC','Unassigned request','Decision','Supported','SoE amount','Provost amount','Note'];
+   const csv=[columns,...lines.map(l=>[info.label,l.record_id,l.description,l.requested,l.request_funding?.dean,l.request_funding?.provost,l.request_funding?.scc,l.request_funding?.unassigned,l.decision,l.supported,l.soe,l.provost,l.note])].map(row=>row.map(cell).join(',')).join('\r\n');
+   return {statusCode:200,headers:{...base,'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="${c.cycle.toUpperCase()}-${key}-budget.csv"`},body:csv};
+  }
+  return reply(200,{cycle:c.cycle,year:c.year,restricted:Boolean(auth.budgetRestricted),unit:info,lines,totals:rollUp(lines),history,recent_budget_outcomes:recentBudgetOutcomes(all,key,c.year),reserves:snapshot,storage_ready:ready,can_edit:canEdit,
    notes:{sections:saved.sections},note_sections:NOTE_SECTIONS,folder:saved.link,log:saved.log,generated_at:now().toISOString()});
  }
  const decided=ready?await store.cycleDecisions(c.cycle):{};

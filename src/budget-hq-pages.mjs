@@ -3,6 +3,7 @@ import access from './access.cjs';
 import navigation from './navigation.cjs';
 import units from './units.cjs';
 import {parseCycle} from './budget-hq.mjs';
+import {authorizeBudget} from './budget-access.mjs';
 
 export const CYCLES=['fy28'];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -18,13 +19,13 @@ export function createBudgetHqPageHandler(authorize=access.authorize){return asy
  const c=rawCycle?parseCycle(rawCycle):null,unit=rawUnit?String(rawUnit).toLowerCase():null;
  if((rawCycle&&!c)||(unit&&(!c||!UNIT.test(unit))))return {statusCode:404,headers:access.noStore,body:'Page not found.'};
  const path='/soe-hq/budget'+(c?'/'+c.cycle:'')+(unit?'/'+unit:'');
- const result=await authorize(event,{scope:'school'});
+ const result=await authorizeBudget(event,{authorize,unit});
  if(result.statusCode===401)return {statusCode:302,headers:{...access.noStore,Location:'/.netlify/functions/auth-login?returnTo='+encodeURIComponent(path)},body:''};
  if(!result.user)return result;
  const fy=c?c.cycle.toUpperCase():'';let title,back,backLabel,body;
  if(!c){
-  title='Budget';back='/soe-hq';backLabel='SoE HQ';
-  body=CYCLES.map(k=>card(k.toUpperCase()+' budget cycle','Every unit’s requests, HQ decisions (decline or support level, SoE / Provost split), and a page per unit for the Dean’s budget meetings.','/soe-hq/budget/'+k))
+  title=result.budgetRestricted?'My department budgets':'Budget';back=result.budgetRestricted?'/?home=1':'/soe-hq';backLabel=result.budgetRestricted?'Services Home':'SoE HQ';
+  body=CYCLES.map(k=>card(k.toUpperCase()+' budget cycle',result.budgetRestricted?'Read-only requests, history and briefing notes for your assigned departments.':'Every unit’s requests, HQ decisions (decline or support level, SoE / Provost split), and a page per unit for the Dean’s budget meetings.','/soe-hq/budget/'+k))
    +(result.admin?card('Budget Explorer','Compare what each unit asked for and received across fiscal years, who funded it, and how requests break down.','/soe-hq/budget-explorer')+card('Reserves vs. spending','Months of discretionary reserve by unit, whether it is growing, GIB use and FY requests.','/soe-hq/reserves'):'')
    +card('Budget Submissions','Budget submission materials by fiscal year.','/soe-hq/budget-submissions')
    +(result.admin?card('Budget Explorer (legacy)','The original budget explorer.','/soe-hq/budget-explorer-legacy'):'');

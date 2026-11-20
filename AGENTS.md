@@ -52,7 +52,7 @@ The HQ table IDs are in `src/budget-hq-tables.json`. Fields are found **by name*
 | Main menu | every page | `src/navigation.cjs` (SoE HQ → Budget → FY28 budget cycle, school-wide users only) |
 | Claude connector (remote MCP) | `/mcp`, `/mcp-oauth/*`, `/.well-known/oauth-*` | `src/mcp-*.mjs`, `netlify/functions/mcp*.mjs`, `CLAUDE-CONNECTOR.md` |
 
-Budget HQ access: view = school-wide `read` or above; decide/edit = school-wide `write` or above.
+Budget HQ access: view = school-wide `read` or above, or an explicit `budget:<unit>` read-only grant for that department only; decide/edit = school-wide `write` or above. Department-only viewers receive no school-wide totals, peer reserves, unit-finance or RCT access. See `BUDGET-ACCESS.md`.
 HQ decisions are deliberately **not** written to the budget table’s “Approved” fields (those feed the
 Explorer’s history). Unit keys: `aeroastro, be, cheme, cee, eecs, imes, idss, dmse, meche, nse`,
 plus labs/centers in `src/units.cjs`; department names map via `src/unit-name-mapping.cjs`.

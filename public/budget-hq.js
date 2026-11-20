@@ -28,6 +28,8 @@ function fundingCards(t){const f=t.request_funding||{};return '<div class="bv-kp
 function deanBar(value,max){return '<div class="bh-bar" title="Asked of the Dean: '+money(value)+'"><i class="dean" style="width:'+Math.max(0,(value||0)/max*100)+'%"></i></div>';}
 // ---------- cycle page ----------
 function renderCycle(){
+ if(data.restricted){$('#bh-content').innerHTML='<section class="bv-panel"><h2>Your departments</h2><p>Read-only budget access. Select a department to view its requests, history, briefing notes and documents.</p><div class="bh-sections">'+data.units.map(u=>'<section><h3>'+esc(u.label)+'</h3><a class="desktop" href="/soe-hq/budget/'+cycle+'/'+encodeURIComponent(u.key)+'">Open budget briefing →</a></section>').join('')+'</div></section>';return;}
+
  const t=data.totals,f=t.request_funding||{},list=[...data.units].sort((a,b)=>(b.request_funding?.dean??-1)-(a.request_funding?.dean??-1)||a.label.localeCompare(b.label)),max=Math.max(1,...list.map(u=>u.request_funding?.dean||0));
  $('#bh-content').innerHTML=fundingCards(t)+
  '<p class="bv-status">Working requests by funding office. Source assumptions remain subject to review; these amounts are separate from saved HQ support decisions.</p>'+
@@ -56,14 +58,14 @@ function renderUnit(){
  <section class="bv-panel bh-brief"><div class="bh-head"><h2>Dean’s briefing</h2><span class="bv-status bh-noprint">${data.can_edit?'Use Edit to update a section; each section saves on its own.':'Prepared by SoE HQ.'}</span></div>${recentOutcomes()}<div id="bh-notes"></div></section>
  <section class="bv-panel"><h2>${fy(data.year)} requests and HQ decisions</h2>${data.can_edit?'<p class="bv-status bh-noprint">Set each line to decline or support. Support level is the share of the request supported. SoE share is the part the School funds, and the rest goes to the Provost as cost share. Save each line.</p>':'<p class="bv-status">Read-only.</p>'}
   <div class="bv-scroll" id="bh-lines"></div></section>
- <div class="bh-two">
+ <div class="${data.restricted?'':'bh-two'}">
   <section class="bv-panel"><h2>Requests vs. approvals</h2><div id="bh-history"></div></section>
-  <section class="bv-panel"><h2>Reserve position</h2><div id="bh-position"></div></section>
+  ${data.restricted?'':'<section class="bv-panel"><h2>Reserve position</h2><div id="bh-position"></div></section>'}
  </div>
- <section class="bv-panel"><h2>Wallet snapshot</h2><div class="bv-scroll" id="bh-wallet"></div></section>
- <section class="bv-panel bh-noprint"><h2>Documents</h2><div id="bh-files"></div></section>
+ ${data.restricted?'':'<section class="bv-panel"><h2>Wallet snapshot</h2><div class="bv-scroll" id="bh-wallet"></div></section>'}
+ <section class="bv-panel bh-noprint"><div class="bh-head"><h2>Documents</h2><a class="desktop" href="${API}?cycle=${cycle}&amp;unit=${encodeURIComponent(unitKey)}&amp;format=csv">Download this department’s requests (CSV)</a></div><div id="bh-files"></div></section>
  <section class="bv-panel bh-noprint"><h2>Change history</h2><div id="bh-audit"></div></section>`;
- notes();files();lines();history();position();wallet();audit();
+ notes();files();lines();history();if(!data.restricted){position();wallet();}audit();
  $('#bh-print').addEventListener('click',()=>window.print());
 }
 function chip(t){const s=!t.lines?['none','No requests']:t.pending===t.lines?['open','Not started']:t.pending?['review','In review · '+t.pending+' pending']:['done','All lines decided'];return `<span class="bh-chip ${s[0]}">${s[1]}</span>`;}

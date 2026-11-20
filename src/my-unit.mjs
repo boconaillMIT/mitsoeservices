@@ -15,6 +15,7 @@ export function createMyUnitHandler(authorize=access.authorize){return async eve
   if(policy.effectiveRole(result.policy.data,result.kerberos,'school','limited'))return {statusCode:302,headers:{...access.noStore,Location:'/?home=1'},body:''};
   const allowed=accessibleUnits(result);
   if(allowed.length===1){const scope=allowed[0],audience=policy.effectiveRole(result.policy.data,result.kerberos,scope,'full')?'full':'limited';return {statusCode:302,headers:{...access.noStore,Location:units.unitPath(scope,audience)},body:''};}
+  if(!allowed.length&&result.navigation?.budget)return {statusCode:302,headers:{...access.noStore,Location:result.navigation?.rct?'/?home=1':'/soe-hq/budget'},body:''};
   if(!allowed.length&&result.navigation?.rct)return {statusCode:302,headers:{...access.noStore,Location:'/soe-hq/rct-review'},body:''};
   if(!allowed.length)return {statusCode:403,headers:access.noStore,body:'No unit access is assigned to this login. Contact a site administrator.'};
   return {statusCode:200,headers:{...access.noStore,'Content-Type':'text/html; charset=utf-8'},body:hubLayout('Your units','<div class="unit-directory">'+unitCards(result)+'</div>',result.canManage,'',result.admin,result.schoolAccess,result.navigation)};
