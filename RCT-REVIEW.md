@@ -50,12 +50,12 @@ source snapshots and receipts stay in ignored `.runtime/`; real documents and
 financial data must not be added to tests or committed as public assets.
 
 Review improvements (November 2026):
-- Six reviewer slots: Hammond, Balakrishnan, Plata, Solomon, and two self-named reviewers. Grades are 1–5 or blank, with separate comments. No high/low interpretation or grade average is inferred.
+- Six reviewer slots: Hammond, Balakrishnan, Plata, Solomon, and two self-named reviewers. Need priority rankings are 1 (highest priority) through 5 (lowest priority), or blank, with separate comments. The existing internal `grade` storage key is retained so saved scores are unchanged.
 - Overall priority is an optional positive integer (1 is highest). Graduate-student funding is unknown until the checkbox is set; saved false remains distinct from unknown.
 - Central funding always calculates Provost and EVPT at a rounded third of the proposed award, or the requested total when no award is entered. The former manual central-funding mode is retired. School target is one sixth; School, department and PI amounts remain explicit editable contributions. The local residual absorbs rounding cents.
 - Original PDFs remain in Dropbox. Each PDF upload (maximum 3 MB) creates an independent record in the MIT QuickBase proposal-version table. No files are stored in Netlify Blobs. Readers download through the RCT-authorized endpoint; Dropbox permissions still apply to original-source links.
 - A final-version pointer is saved with the review revision. The server verifies uploaded final versions belong to the proposal. No document versions are deleted or replaced.
-- Workbook overview collects saved grades, priority, grad flags, funding totals and comments in department course-number order. The Excel download retains its original columns and adds a Review details sheet. Offline edits do not sync back.
+- Workbook overview collects saved need priority rankings, overall priority, grad flags, funding totals and comments in department course-number order. The Excel download retains its original columns and adds a Review details sheet. Offline edits do not sync back.
 - Changed shared/reviewer comments retain prior text in server-managed note history. Incoming clients cannot erase that history. Existing fields omitted by older clients are retained, and atomic QuickBase update_id protection remains in place.
 - Before releasing the separate-permission change, inspect the production policy. After publishing, preserve existing school Read/Write reviewers through explicit RCT grants without altering their finance grants. Never infer MIT logins from reviewer display names.
 
