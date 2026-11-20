@@ -27,12 +27,12 @@ On the website, the proposal will be selected for you. Find “Reviewer need pri
 
 The “Funding contributions” section appears below the reviewer rankings. It shows the proposed funding split and any amounts entered for School, department and PI contributions. These are planning figures, rather than confirmed commitments.
 
-Please complete your review by ${due}. If you have trouble accessing the website or proposal, please let me know. The website requires MIT sign-in and RCT access; original Dropbox files have separate permissions.
+Please complete your review by ${due}. If you have trouble accessing the website or proposal, please let me know. The website requires MIT sign-in and website-specific access; original Dropbox files have separate permissions.
 
 Many thanks,
 Brían`};
 }
 export function emailDraftUrl(email,subject,body){
  if(!/^[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9.-]*[A-Z0-9])?\.[A-Z]{2,}$/i.test(email))throw Error('Enter one valid reviewer email address.');
- return 'mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
+ return 'mailto:'+encodeURIComponent(email)+'?cc='+encodeURIComponent('soe-research@mit.edu,kimcs@mit.edu')+'&subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
 }

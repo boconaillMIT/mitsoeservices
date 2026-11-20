@@ -16,7 +16,7 @@ test('RCT PDF links follow the saved final version without changing original pro
 });
 test('RCT email drafts encode editable text and reject extra recipients or injected headers',()=>{
  const url=new URL(emailDraftUrl('reviewer@example.test','Example & subject','Body\nWith another line'));
- assert.equal(url.searchParams.get('subject'),'Example & subject');assert.equal(url.searchParams.get('body'),'Body\nWith another line');
+ assert.equal(url.searchParams.get('subject'),'Example & subject');assert.equal(url.searchParams.get('body'),'Body\nWith another line');assert.equal(url.searchParams.get('cc'),'soe-research@mit.edu,kimcs@mit.edu');
  for(const email of ['bad','a@example.test,b@example.test','a@example.test?bcc=x@example.test','a@example.test\r\nBcc:x@example.test'])assert.throws(()=>emailDraftUrl(email,'Subject','Body'));
 });
 test('RCT proposal invitation links survive MIT sign-in without allowing foreign redirects',async()=>{
