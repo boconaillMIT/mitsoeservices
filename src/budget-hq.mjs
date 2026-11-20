@@ -14,13 +14,14 @@ import {loadReserves} from './reserves.mjs';
 import {createBudgetHqStore,SECTION_LABEL} from './budget-hq-qb.mjs';
 
 export const DECISIONS=['pending','decline','support'];
+const BRIEFING_UNITS={'x-neet':'NEET','x-mites':'MITES',lgo:'LGO',sdm:'SDM',gel:'TLC / GEL'};
 const MAX_NOTE=1000,MAX_AUDIT=500;
 export function parseCycle(value){const m=/^fy(\d{2})$/i.exec(String(value||''));return m?{cycle:'fy'+m[1],year:2000+Number(m[1])}:null;}
 const slug=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'unassigned';
 export function unitKeyFor(department){const budgetAliases={'IDSS / TPP':'idss','IDSS/TPP':'idss','CTL/SCM':'ctl','TLC/GEL':'gel'};const scope=budgetAliases[department]||nameMapping.scopeFor(department);return scope?units.permissionScope(scope):'x-'+slug(department);}
 export function unitInfo(key,departments=[]){
  const u=units.ALL_UNITS[key]||(key==='school'?units.WALLETS.school:null);if(u)return {key,label:u.label,name:u.name,academic:Object.hasOwn(units.UNITS,key),has_wallet:true};
- const name=departments[0]||'Unassigned';return {key,label:name,name:name+' (not mapped to a site unit)',academic:false,has_wallet:false};
+ const name=BRIEFING_UNITS[key]||departments[0]||'Unassigned';return {key,label:name,name:BRIEFING_UNITS[key]?name:name+' (not mapped to a site unit)',academic:false,has_wallet:false};
 }
 
 // ---------- QuickBase request lines ----------
@@ -102,7 +103,7 @@ export function createBudgetHqDataHandler({authorize=access.authorize,asks=loadA
  const ready=store.configured(),canEdit=ready&&(policy.CAPABILITIES[auth.role]||0)>=policy.CAPABILITIES.write;
  let all,rows;try{all=await asks();rows=all.filter(a=>a.year===c.year);}catch(e){console.error('Budget HQ asks:',e.message);return reply(503,{error:'Budget requests are temporarily unavailable from QuickBase.'});}
  const byUnit=new Map();for(const a of rows){if(!byUnit.has(a.unit_key))byUnit.set(a.unit_key,[]);byUnit.get(a.unit_key).push(a);}
- const knownUnit=k=>typeof k==='string'&&/^[a-z0-9-]{1,60}$/.test(k)&&(byUnit.has(k)||(Object.hasOwn(units.ALL_UNITS,k)&&k!=='soe-fake'));
+ const knownUnit=k=>typeof k==='string'&&/^[a-z0-9-]{1,60}$/.test(k)&&(byUnit.has(k)||(c.cycle==='fy28'&&Object.hasOwn(BRIEFING_UNITS,k))||(Object.hasOwn(units.ALL_UNITS,k)&&k!=='soe-fake'));
  const conflict=what=>reply(409,{error:`Someone else changed this ${what}. Reload to see the latest before saving.`});
  try{
  if(writing){
@@ -146,7 +147,7 @@ export function createBudgetHqDataHandler({authorize=access.authorize,asks=loadA
    notes:{sections:saved.sections},note_sections:NOTE_SECTIONS,folder:saved.link,log:saved.log,generated_at:now().toISOString()});
  }
  const decided=ready?await store.cycleDecisions(c.cycle):{};
- const keys=[...new Set([...Object.keys(units.UNITS).filter(k=>k!=='soe-fake'),...byUnit.keys()])];
+ const keys=[...new Set([...Object.keys(units.UNITS).filter(k=>k!=='soe-fake'),...byUnit.keys(),...(c.cycle==='fy28'?Object.keys(BRIEFING_UNITS):[])])];
  const list=keys.map(k=>{const ls=(byUnit.get(k)||[]).map(a=>lineOf(a,decided[k]));return {...unitInfo(k,[...new Set((byUnit.get(k)||[]).map(a=>a.unit))]),...rollUp(ls)};})
   .sort((a,b)=>(b.academic-a.academic)||String(a.label).localeCompare(b.label));
  if(q.format==='csv'){

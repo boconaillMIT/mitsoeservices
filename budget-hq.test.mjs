@@ -90,6 +90,17 @@ test('cycle roll-up lists every academic unit plus unmapped request groups; CSV 
  const csv=await get(h,{format:'csv'});assert.match(csv.headers['Content-Disposition'],/FY28/);assert.match(csv.body,/"'=HYPERLINK\(""x""\)"/);assert.equal(csv.body.split('\r\n').length,5);
 });
 
+test('FY28 briefings remain reachable for programs without request lines',async()=>{
+ const h=handler('school_writer'),cycle=await get(h,{});
+ for(const key of ['x-mites','x-neet','lgo','sdm','gel']){
+  assert.ok(cycle.json.units.some(u=>u.key===key));
+  const response=await get(h,{unit:key});assert.equal(response.statusCode,200);assert.equal(response.json.lines.length,0);
+ }
+ assert.equal(cycle.json.totals.requested,760000,'Briefing navigation adds no financial requests');
+ const saved=await put(h,{action:'notes',unit:'x-mites',section:'talking',text:'Example opening remarks',version:null});assert.equal(saved.statusCode,200);
+ assert.equal((await get(h,{unit:'x-mites'})).json.notes.sections.talking.text,'Example opening remarks');
+});
+
 // ---------- QuickBase store against a fake QuickBase ----------
 function fakeQB(){
  const tables={dec:'tdecisions',bri:'tbriefing',uni:'tunits',log:'tchangelog'},cfg={decisions:tables.dec,briefing:tables.bri,units:tables.uni,log:tables.log};
