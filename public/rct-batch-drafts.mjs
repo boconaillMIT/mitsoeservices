@@ -1,5 +1,29 @@
 import {invitationDraft,proposalLinks,deadlineText,DEFAULT_DEADLINE,emailDraftUrl} from './rct-invitations.mjs';
+import {REVIEWER_DIRECTORY} from './rct-reviewers.mjs';
 export const INVITATION_CC=['soe-research@mit.edu','kimcs@mit.edu'];
+export const REVIEWER_INVITATION_SUBJECT='RCT Round 2 — proposals ready for your review';
+export const REVIEWER_INVITATION_TEMPLATE=`Dear {{REVIEWER}},
+
+{{REQUEST}} the following Research Continuity and Transition (RCT) Round 2 proposals, which are ready for your review.
+
+My review — your assigned proposals and progress:
+{{MYREVIEW}}
+
+Proposals for your review:
+{{PROPOSALS}}
+
+On your review page, enter your need priority ranking and comments for each proposal. The scale is 1 = highest priority and 5 = lowest priority. A check mark identifies proposals where you have saved a priority score.
+
+The “Funding contributions” section appears below the reviewer rankings in each proposal’s full review. It shows the proposed funding split and any amounts entered for School, department and PI contributions. These are planning figures, rather than confirmed commitments.
+
+Please complete your review by {{DEADLINE}}. If you have trouble accessing the website or proposals, please let me know. The website requires MIT sign-in and website-specific access; original Dropbox files have separate permissions.
+
+Many thanks,
+Brían`;
+export function buildReviewerInvitations(records,{deadline,template=REVIEWER_INVITATION_TEMPLATE,subject=REVIEWER_INVITATION_SUBJECT,reviewers=REVIEWER_DIRECTORY.map(p=>p.key)},origin){
+ if(typeof template!=='string'||!template.trim()||template.length>12000||typeof subject!=='string'||!subject.trim()||subject.length>300||/[\r\n]/.test(subject)||!Array.isArray(reviewers)||reviewers.some(key=>!REVIEWER_DIRECTORY.some(p=>p.key===key)))throw Error('Enter valid reviewer invitation settings.');
+ return REVIEWER_DIRECTORY.filter(p=>reviewers.includes(p.key)).flatMap(person=>{const assigned=records.filter(r=>(r.review.assignments||[]).includes(person.key));if(!assigned.length)return [];const values={REVIEWER:person.name,REQUEST:person.key==='hammond'?'We would appreciate your review of':'Dean Hammond would appreciate your review of',MYREVIEW:new URL('/soe-hq/rct-review/my-review',origin).href,DEADLINE:deadlineText(deadline),PROPOSALS:assigned.map((r,i)=>{let pdf;try{const url=new URL(r.source.proposalUrl);if(url.protocol!=='https:'||url.hostname!=='www.dropbox.com')throw Error();pdf=url.href;}catch{pdf=proposalLinks(r,origin).pdf;}return (i+1)+'. '+r.source.pi+' — '+r.source.title+'\nProposal in Dropbox: '+pdf+'\nFull review and funding: '+proposalLinks(r,origin).website;}).join('\n\n')},render=text=>text.replace(/\{\{([A-Z]+)\}\}/g,(token,key)=>{if(!Object.hasOwn(values,key))throw Error('The email wording has changed. Refresh the invitation page and prepare the reviewer emails again.');return values[key];});return [{id:person.key,to:[{name:person.name,email:person.email}],cc:INVITATION_CC,subject:render(subject),body:render(template),proposalIds:assigned.map(r=>r.id)}];});
+}
 export function parseReviewers(value){
  const lines=String(value).split(/[\n;]+/).flatMap(line=>line.includes('<')?[line]:line.split(',')),seen=new Set(),result=[];
  for(const line of lines){const text=line.trim();if(!text)continue;const match=/^([^<>]+)\s*<([^<>]+)>$/.exec(text),email=(match?match[2]:text).trim(),name=(match?match[1]:'').trim();if(/[\x00-\x1f\x7f]/.test(name+email))throw Error('Reviewer names and addresses must stay on one line.');emailDraftUrl(email,'','');if(seen.has(email.toLowerCase()))continue;seen.add(email.toLowerCase());result.push({name,email});}
