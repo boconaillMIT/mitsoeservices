@@ -3,7 +3,7 @@ import {invitationDownload,invitationAttachment} from './src/rct-invitation-down
 test('reviewer assignments accept only the three selected identities and retain legacy defaults',()=>{
  assert.deepEqual(validateReview(emptyReview()).assignments,[]);assert.deepEqual(validateReview({...emptyReview(),assignments:['hammond','dplata']}).assignments,['hammond','dplata']);
  for(const assignments of [['other'],['hamsa','hamsa'],'hamsa'])assert.throws(()=>validateReview({...emptyReview(),assignments}));
- assert.deepEqual(REVIEWER_DIRECTORY.map(p=>p.email),['hammond@mit.edu','hamsa@mit.edu','dplata@mit.edu']);
+ assert.deepEqual(REVIEWER_DIRECTORY.slice(0,3).map(p=>p.email),['hammond@mit.edu','hamsa@mit.edu','dplata@mit.edu']);assert.equal(REVIEWER_DIRECTORY.find(p=>p.key==='oconaill').email,'oconaill@mit.edu');assert.deepEqual(validateReview({...emptyReview(),assignments:REVIEWER_DIRECTORY.map(p=>p.key)}).assignments,['hammond','hamsa','dplata','oconaill']);
 });
 test('personal queues show only assignments and completion follows the named reviewer score',()=>{
  const review=emptyReview();review.assignments=['hammond','hamsa'];review.reviewers[0].grade='2';const records=[{id:'assigned',review},{id:'not-assigned',review:emptyReview()}];
