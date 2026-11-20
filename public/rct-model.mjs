@@ -6,7 +6,9 @@ export const localFundingEntries=review=>Object.keys(LOCAL_LABELS).map(key=>({ke
 export const localFundingTitle=review=>['SoE',...localFundingEntries(review).map(x=>x.label)].join(' / ');
 export const MONEY=['award',...FUNDING.map(([key])=>key)];
 export const REVIEWERS=['Hammond','Balakrishnan','Plata','Solomon','',''];
-export const emptyReview=()=>({...Object.fromEntries(MONEY.map(k=>[k,null])),fundingLabels:{...LOCAL_LABELS},decision:'',notes:'',reviewers:REVIEWERS.map(name=>({name,grade:'',comments:''})),priority:null,gradStudents:null,autoCentral:true,vpr:null,notesHistory:[],finalVersion:null});
+export const emptyReview=()=>({...Object.fromEntries(MONEY.map(k=>[k,null])),fundingLabels:{...LOCAL_LABELS},commentStamps:{notes:null,reviewers:REVIEWERS.map(()=>null)},decision:'',notes:'',reviewers:REVIEWERS.map(name=>({name,grade:'',comments:''})),priority:null,gradStudents:null,autoCentral:true,vpr:null,notesHistory:[],finalVersion:null});
+export function commentStampText(stamp){return stamp?new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',dateStyle:'medium',timeStyle:'long'}).format(new Date(stamp.at))+' · '+stamp.by:'';}
+export const stampedComment=(text,stamp)=>text?(stamp?'Saved '+commentStampText(stamp)+'\n':'')+text:'';
 export function centralThirds(award){const third=Math.round(award*100/3)/100;return {provost:third,evpt:third,local:Math.round((award-2*third)*100)/100,schoolTarget:Math.round(award*100/6)/100};}
 // VPR and the former manual-central flag are accepted for old saved records only.
 // Funding always uses the six active sources and fixed central thirds.
@@ -19,8 +21,9 @@ export function departmentInfo(source){
 }
 export function sortProposals(records){return [...records].sort((a,b)=>departmentInfo(a.source).number-departmentInfo(b.source).number||departmentInfo(a.source).label.localeCompare(departmentInfo(b.source).label)||a.source.pi.localeCompare(b.source.pi));}
 export function validateReview(value){
- if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>![...MONEY,'fundingLabels','vpr','decision','notes','reviewers','priority','gradStudents','autoCentral','notesHistory','finalVersion'].includes(k)))throw Error('Invalid review fields.');
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>![...MONEY,'fundingLabels','commentStamps','vpr','decision','notes','reviewers','priority','gradStudents','autoCentral','notesHistory','finalVersion'].includes(k)))throw Error('Invalid review fields.');
  const result=emptyReview();
+ if(value.commentStamps!==undefined){const meta=value.commentStamps;const stamp=s=>{if(s===null)return null;if(!s||typeof s!=='object'||Array.isArray(s)||Object.keys(s).some(k=>!['by','at'].includes(k))||typeof s.by!=='string'||!s.by.trim()||s.by.length>100||/[\x00-\x1f\x7f]/.test(s.by)||typeof s.at!=='string'||!Number.isFinite(Date.parse(s.at)))throw Error('Invalid comment stamp.');return {by:s.by,at:s.at};};if(!meta||typeof meta!=='object'||Array.isArray(meta)||Object.keys(meta).some(k=>!['notes','reviewers'].includes(k))||!Array.isArray(meta.reviewers)||meta.reviewers.length!==6)throw Error('Invalid comment stamps.');result.commentStamps={notes:stamp(meta.notes),reviewers:meta.reviewers.map(stamp)};}
  if(value.fundingLabels!==undefined){const labels=value.fundingLabels;if(!labels||typeof labels!=='object'||Array.isArray(labels)||Object.keys(labels).some(k=>!Object.hasOwn(LOCAL_LABELS,k)))throw Error('Invalid funding names.');for(const key of Object.keys(LOCAL_LABELS)){const label=labels[key];if(label===undefined)continue;if(typeof label!=='string'||!label.trim()||label.length>60||/[\x00-\x1f\x7f]/.test(label))throw Error('Funding names must contain 1 to 60 characters.');result.fundingLabels[key]=label.trim();}}
  for(const key of [...MONEY,'vpr']){const v=value[key];if(v===null||v===''||v===undefined)continue;if(typeof v!=='number'||!Number.isFinite(v)||v<0||v>100000000||Math.abs(v*100-Math.round(v*100))>0.00001)throw Error('Amounts must be nonnegative numbers with at most two decimal places.');result[key]=v;}
  for(const [key,max]of [['decision',100],['notes',15000]]){if(typeof value[key]!=='string'||value[key].length>max||/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(value[key]))throw Error('Invalid '+key+'.');result[key]=value[key];}

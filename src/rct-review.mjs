@@ -4,19 +4,21 @@ import {createRctStore} from './rct-store.mjs';
 import {dropboxLink,loadDropboxTemplate} from './rct-dropbox.mjs';
 import {validateReview,fundingReview} from './rct-model.mjs';
 import {createRctVersions,validatePdf} from './rct-versions.mjs';
+import {createRctAttachments,validateAttachment} from './rct-attachments.mjs';
 import {exportReviews} from './rct-export.mjs';
 const ROOT='/soe-hq/rct-review';
-export function createRctHandler({authorize=access.authorize,store=createRctStore(),template=loadDropboxTemplate,exporter=exportReviews,versions=createRctVersions()}={}){return async event=>{
+export function createRctHandler({authorize=access.authorize,store=createRctStore(),template=loadDropboxTemplate,exporter=exportReviews,versions=createRctVersions(),attachments=createRctAttachments()}={}){return async event=>{
  const headers={...access.noStore,'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'},json=(status,data)=>({statusCode:status,headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(data)});
  const action=event.path?.startsWith(ROOT)?event.path.slice(ROOT.length).replace(/^\//,''):event.queryStringParameters?.action||'';
- if(!['','data','proposal','source','export','versions','file'].includes(action))return json(404,{error:'Page not found.'});
- const write=event.httpMethod==='POST'&&['data','versions'].includes(action);if(event.httpMethod!=='GET'&&!write)return json(405,{error:'Method not allowed.'});
+ if(!['','data','proposal','source','export','versions','file','attachments','attachment'].includes(action))return json(404,{error:'Page not found.'});
+ const write=event.httpMethod==='POST'&&['data','versions','attachments'].includes(action);if(event.httpMethod!=='GET'&&!write)return json(405,{error:'Method not allowed.'});
  const auth=await authorize(event,{scope:'rct',minimum:write?'write':'read'});
  if(!auth.user){if(!action&&auth.statusCode===401)return {statusCode:302,headers:{...headers,Location:'/.netlify/functions/auth-login?returnTo='+encodeURIComponent(ROOT)},body:''};return auth;}
- if(write){const h=Object.fromEntries(Object.entries(event.headers||{}).map(([k,v])=>[k.toLowerCase(),v]));if(!process.env.APP_ORIGIN||h.origin!==process.env.APP_ORIGIN||h['content-type']?.split(';')[0].trim()!=='application/json')return json(403,{error:'Same-origin JSON required.'});if(typeof event.body!=='string'||event.body.length>(action==='versions'?4200000:70000))return json(413,{error:'Review is too large.'});
-  if(action==='versions'){
-   let b;try{b=JSON.parse(event.body);validatePdf(b);}catch(e){return json(400,{error:e.message||'Invalid PDF upload.'});}
-   try{if(!(await store.list()).some(r=>r.id===b.id))return json(404,{error:'Proposal not found.'});const uploaded=await versions.upload(b,auth.kerberos);return json(201,{version:uploaded});}catch{return json(503,{error:'The upload could not be confirmed. Reload the version list before retrying.'});}
+ if(write){const h=Object.fromEntries(Object.entries(event.headers||{}).map(([k,v])=>[k.toLowerCase(),v]));if(!process.env.APP_ORIGIN||h.origin!==process.env.APP_ORIGIN||h['content-type']?.split(';')[0].trim()!=='application/json')return json(403,{error:'Same-origin JSON required.'});if(typeof event.body!=='string'||event.body.length>(['versions','attachments'].includes(action)?4200000:70000))return json(413,{error:'Review is too large.'});
+  if(['versions','attachments'].includes(action)){
+   const attachment=action==='attachments',documents=attachment?attachments:versions;
+   let b;try{b=JSON.parse(event.body);(attachment?validateAttachment:validatePdf)(b);}catch(e){return json(400,{error:e.message||'Invalid PDF upload.'});}
+   try{if(!(await store.list()).some(r=>r.id===b.id))return json(404,{error:'Proposal not found.'});const uploaded=await documents.upload(b,auth.kerberos);return json(201,{[attachment?'attachment':'version']:uploaded});}catch{return json(503,{error:'The upload could not be confirmed. Reload the version list before retrying.'});}
   }
   let b,value;try{b=JSON.parse(event.body);if(Object.keys(b).some(k=>!['id','revision','review'].includes(k))||!/^FY27-RCT2\|[a-z-]{1,40}$/.test(b.id||'')||typeof b.revision!=='string'||b.revision.length>100)throw Error('Invalid review.');validateReview(b.review);value=b.review;}catch(e){return json(400,{error:e.message||'Invalid review.'});}
   try{if(value.finalVersion&&value.finalVersion!=='original'&&!(await versions.list(b.id)).some(v=>v.id===value.finalVersion))return json(400,{error:'The final version must belong to this proposal.'});const saved=await store.save(b.id,value,b.revision,auth.kerberos);if(saved.conflict)return json(409,{error:'A colleague saved a newer review. Your changes are still on screen. Copy your notes, then reload the saved review before trying again.'});if(saved.missing)return json(404,{error:'Proposal not found.'});return json(200,{row:saved.row});}catch{return json(503,{error:'The review could not be saved. Your changes are still on screen.'});}
@@ -25,11 +27,12 @@ export function createRctHandler({authorize=access.authorize,store=createRctStor
  try{
   const records=await store.list();if(!records.length)return json(503,{error:'No proposals have been imported.'});
   if(action==='data')return json(200,{records:records.map(r=>({...r,review:fundingReview(r.review,r.source)})),canEdit:auth.canWrite===true});
-  if(action==='versions'||action==='file'){
+  if(['versions','file','attachments','attachment'].includes(action)){
+   const supporting=['attachments','attachment'].includes(action),documents=supporting?attachments:versions;
    const id=event.queryStringParameters?.id;if(!records.some(r=>r.id===id))return json(404,{error:'Proposal not found.'});
-   if(action==='versions')return json(200,{versions:(await versions.list(id)).map(({rid,...v})=>v)});
-   const file=await versions.download(id,event.queryStringParameters?.version);if(!file)return json(404,{error:'Proposal version not found.'});
-   return {statusCode:200,headers:{...headers,'Content-Type':'application/pdf','Content-Length':String(file.bytes.length),'Content-Disposition':"attachment; filename*=UTF-8''"+encodeURIComponent(file.filename).replace(/[!'()*]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase()),'Content-Security-Policy':"default-src 'none'; sandbox"},body:file.bytes};
+   if(['versions','attachments'].includes(action))return json(200,{[supporting?'attachments':'versions']:(await documents.list(id)).map(({rid,...v})=>v)});
+   const file=await documents.download(id,event.queryStringParameters?.version);if(!file)return json(404,{error:'Proposal version not found.'});
+   return {statusCode:200,headers:{...headers,'Content-Type':file.contentType||'application/pdf','Content-Length':String(file.bytes.length),'Content-Disposition':"attachment; filename*=UTF-8''"+encodeURIComponent(file.filename).replace(/[!'()*]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase()),'Content-Security-Policy':"default-src 'none'; sandbox"},body:file.bytes};
   }
   if(action==='proposal'){
    const record=records.find(r=>r.id===event.queryStringParameters?.id);if(!record)return json(404,{error:'Proposal not found.'});

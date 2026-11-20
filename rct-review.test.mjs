@@ -178,3 +178,19 @@ test('Excel retains contributor names and Other amount without moving note colum
  const review={...emptyReview(),award:120,decision:'Support',school:10,department:10,pi:10,other:10,fundingLabels:{department:'CEE',pi:'Architecture',other:'Partner <A>'}};
  const zip=unzipSync(exportReviews(template(),[{...row(),review}])),sheet=strFromU8(zip['xl/worksheets/sheet1.xml']);assert.match(sheet,/<c r="W8"[^>]*><v>10<\/v>/);assert.match(sheet,/<c r="X8"[^>]*[\s\S]*?CEE/);assert.match(sheet,/Architecture/);assert.match(sheet,/Partner &lt;A&gt;/);assert.match(sheet,/COUNT\(J8:L8,W8\)/);assert.match(sheet,/SUM\(H8:L8,W8\)/);assert.match(sheet,/<c r="S8"/);
 });
+
+test('comment stamps come from the signed-in editor and only change with their own text',async()=>{
+ const stamp={by:'first_editor',at:'2026-11-19T15:00:00.000Z'},original={...emptyReview(),notes:'Original note',commentStamps:{notes:stamp,reviewers:[stamp,null,null,null,null,null]}};original.reviewers[0].comments='Original comment';
+ const f=transportFixture(original),store=createRctStore({transport:f.transport,table:'exampletable',now:()=>new Date('2026-11-20T15:04:05Z')});
+ const changed={...original,notes:'Revised note',commentStamps:{notes:{by:'spoofed',at:'2000-01-01'},reviewers:[null,null,null,null,null,null]}};const saved=(await store.save(row().id,changed,'v1','actual_editor')).row.review;
+ assert.deepEqual(saved.commentStamps.notes,{by:'actual_editor',at:'2026-11-20T15:04:05.000Z'});assert.deepEqual(saved.commentStamps.reviewers[0],stamp);assert.equal(saved.notesHistory[0].by,'first_editor');assert.equal(saved.notesHistory[0].at,stamp.at);
+ const money=(await store.save(row().id,{...original,school:10},'v1','other_editor')).row.review;assert.deepEqual(money.commentStamps.notes,stamp);assert.deepEqual(money.commentStamps.reviewers[0],stamp);
+ const comments=(await store.save(row().id,{...original,reviewers:original.reviewers.map((v,i)=>i? v:{...v,comments:'Updated comment'})},'v1','actual_editor')).row.review;assert.equal(comments.commentStamps.reviewers[0].by,'actual_editor');assert(comments.notesHistory.some(n=>n.text==='Hammond: Original comment'&&n.by==='first_editor'));
+});
+test('old notes stay unstamped until edited and stamps survive clients that omit metadata',async()=>{
+ const legacy=emptyReview();delete legacy.commentStamps;legacy.notes='Existing legacy note';const f=transportFixture(legacy),store=createRctStore({transport:f.transport,table:'exampletable',now:()=>new Date('2026-11-20T15:00:00Z')});
+ assert.equal((await store.save(row().id,{...legacy,school:12},'v1','editor')).row.review.commentStamps.notes,null);
+ const changed=(await store.save(row().id,{...legacy,notes:'New note'},'v1','editor')).row.review;assert.equal(changed.commentStamps.notes.by,'editor');assert.equal(changed.notesHistory[0].by,'Earlier entry');
+ assert.throws(()=>validateReview({...emptyReview(),commentStamps:{notes:{by:'editor',at:'not-a-date'},reviewers:[null,null,null,null,null,null]}}));
+ const stamp={by:'editor',at:'2026-11-20T15:04:05.000Z'},review={...emptyReview(),notes:'Example note',commentStamps:{notes:stamp,reviewers:[stamp,null,null,null,null,null]}};review.reviewers[0].comments='Example comment';const output=unzipSync(exportReviews(template(),[{...row(),review}]));assert.match(strFromU8(output['xl/worksheets/sheet1.xml']),/Saved Nov 20, 2026.*10:04:05.*EST.*editor/);assert.match(strFromU8(output['xl/worksheets/rct-review-details.xml']),/Saved Nov 20, 2026.*editor/);
+});

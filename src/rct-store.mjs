@@ -15,9 +15,11 @@ export function createRctStore({transport=createQbTransport(),table=config.revie
   const revisionField=[...info.matchAll(/<field\b[^>]*>([\s\S]*?)<\/field>/g)].find(m=>new RegExp(`<fid>\\s*${f.Revision}\\s*</fid>`).test(m[1]));
   const current=revisionField&&/<value>([\s\S]*?)<\/value>/.exec(revisionField[1])?.[1];if(!updateId||unxml(current||'')!==revision)return {conflict:true};
   const next=uuid(),at=now().toISOString();
-  review=validateReview({...row.review,...review,vpr:row.review.vpr,notesHistory:row.review.notesHistory});
-  if(review.notes!==row.review.notes&&row.review.notes)review.notesHistory.push({text:row.review.notes,by:row.updatedBy||'Previous review',at:row.updatedAt?new Date(row.updatedAt).toISOString():at});
-  for(let i=0;i<6;i++){const previous=row.review.reviewers[i],next=review.reviewers[i];if(previous.comments&&previous.comments!==next.comments)review.notesHistory.push({text:previous.name+': '+previous.comments,by:row.updatedBy||'Previous review',at:row.updatedAt?new Date(row.updatedAt).toISOString():at});}
+  // Only authenticated server saves may set attribution; client stamps are ignored.
+  review=validateReview({...row.review,...review,vpr:row.review.vpr,notesHistory:row.review.notesHistory,commentStamps:row.review.commentStamps});
+  const archive=(text,stamp)=>review.notesHistory.push({text,by:stamp?.by||'Earlier entry',at:stamp?.at||at});
+  if(review.notes!==row.review.notes){if(row.review.notes)archive(row.review.notes,row.review.commentStamps.notes);review.commentStamps.notes={by:actor,at};}
+  for(let i=0;i<6;i++){const previous=row.review.reviewers[i],next=review.reviewers[i];if(previous.comments!==next.comments||previous.name!==next.name&&Boolean(previous.comments||next.comments)){if(previous.comments)archive(previous.name+': '+previous.comments,row.review.commentStamps.reviewers[i]);review.commentStamps.reviewers[i]={by:actor,at};}}
   review=fundingReview(review,row.source);
   const values={'Review JSON':JSON.stringify(validateReview(review)),Revision:next,'Updated By':actor,'Updated At':Date.parse(at)};
   try{await transport.native(table,'API_EditRecord',`<rid>${row.rid}</rid><update_id>${xml(updateId)}</update_id>`+Object.entries(values).map(([k,v])=>`<field fid="${f[k]}">${xml(v)}</field>`).join(''));}catch(e){if(e.qbCode)return {conflict:true};throw e;}

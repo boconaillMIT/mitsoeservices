@@ -1,5 +1,5 @@
 import {unzipSync,zipSync,strFromU8,strToU8} from 'fflate';
-import {FUNDING,fundingName,fundingSummary,fundingReview,sortProposals,validateReview} from './rct-model.mjs';
+import {stampedComment,commentStampText,FUNDING,fundingName,fundingSummary,fundingReview,sortProposals,validateReview} from './rct-model.mjs';
 const xml=v=>String(v).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const cols='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 // Retain the provided workbook's styles and table, replacing external links with
@@ -29,7 +29,7 @@ export function exportReviews(template,records){
  const allValues=[];
  for(const [i,record]of records.entries()){
   const r=first+i,s=record.source,v=record.review,f=fundingSummary(v,s);
-  const values={A:s.area,B:s.pi,C:s.department,D:s.duration,E:s.requested,F:s.budgetTotal,G:v.award,...Object.fromEntries(FUNDING.map(([key,,col])=>[col,v[key]])),M:v.award===null?'Requested total':'Proposed award',N:f.local,O:Math.round(((v.provost??0)+(v.evpt??0))*100)/100,P:f.assigned,Q:f.unallocated,R:v.decision,S:v.notes,T:s.prior,U:s.budgetDifference,V:s.sourceNotes,X:fundingName(v,'department'),Y:fundingName(v,'pi'),Z:fundingName(v,'other')};allValues.push(values);
+  const values={A:s.area,B:s.pi,C:s.department,D:s.duration,E:s.requested,F:s.budgetTotal,G:v.award,...Object.fromEntries(FUNDING.map(([key,,col])=>[col,v[key]])),M:v.award===null?'Requested total':'Proposed award',N:f.local,O:Math.round(((v.provost??0)+(v.evpt??0))*100)/100,P:f.assigned,Q:f.unallocated,R:v.decision,S:stampedComment(v.notes,v.commentStamps.notes),T:s.prior,U:s.budgetDifference,V:s.sourceNotes,X:fundingName(v,'department'),Y:fundingName(v,'pi'),Z:fundingName(v,'other')};allValues.push(values);
   const totalFormula=`IF(G${r}="",E${r},G${r})`;
   const formulas={H:`ROUND(${totalFormula}/3,2)`,I:`ROUND(${totalFormula}/3,2)`,N:`IF(COUNT(J${r}:L${r},W${r})=0,"",SUM(J${r}:L${r},W${r}))`,O:`SUM(H${r}:I${r})`,P:`SUM(H${r}:L${r},W${r})`,Q:`${totalFormula}-SUM(H${r}:L${r},W${r})`};
   rows+=`<row r="${r}" ht="100" customHeight="1">${cols.map(c=>cell(c,r,values[c],formulas[c]??null)).join('')}</row>`;
@@ -57,7 +57,7 @@ function addReviewDetails(zip,records){
  const headers=['PI','Department','Overall priority (1 highest)','Graduate-student funding',...Array.from({length:6},(_,i)=>['Reviewer '+(i+1),'Need priority (1 highest, 5 lowest)','Comments']).flat(),'Final proposal version','Earlier notes'];
  const column=i=>String.fromCharCode(65+i);
  const cell=(c,r,v)=>v===null||v===undefined?`<c r="${c}${r}" s="${r===1?styles.header:styles.body}"/>`:typeof v==='number'?`<c r="${c}${r}" s="${r===1?styles.header:styles.body}"><v>${v}</v></c>`:`<c r="${c}${r}" s="${r===1?styles.header:styles.body}" t="inlineStr"><is><t xml:space="preserve">${xml(v)}</t></is></c>`;
- const rows=[headers,...records.map(({source:s,review:r,finalVersionLabel})=>[s.pi,s.department,r.priority,r.gradStudents===null?'Unknown':r.gradStudents?'Yes':'No',...r.reviewers.flatMap(v=>[v.name,v.grade?Number(v.grade):null,v.comments]),finalVersionLabel||r.finalVersion||'Not selected',r.notesHistory.map(n=>n.by+' · '+n.at+'\n'+n.text).join('\n\n')])];
+ const rows=[headers,...records.map(({source:s,review:r,finalVersionLabel})=>[s.pi,s.department,r.priority,r.gradStudents===null?'Unknown':r.gradStudents?'Yes':'No',...r.reviewers.flatMap((v,i)=>[v.name,v.grade?Number(v.grade):null,stampedComment(v.comments,r.commentStamps.reviewers[i])]),finalVersionLabel||r.finalVersion||'Not selected',r.notesHistory.map(n=>commentStampText(n)+'\n'+n.text).join('\n\n')])];
  const contents=rows.map((values,i)=>`<row r="${i+1}" ht="${i?100:40}" customHeight="1">${values.map((v,j)=>cell(column(j),i+1,v)).join('')}</row>`).join('');
  zip[sheetPath]=strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:X${rows.length}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="2" width="32" customWidth="1"/><col min="3" max="4" width="22" customWidth="1"/>${Array.from({length:6},(_,i)=>`<col min="${5+3*i}" max="${5+3*i}" width="22" customWidth="1"/><col min="${6+3*i}" max="${6+3*i}" width="22" customWidth="1"/><col min="${7+3*i}" max="${7+3*i}" width="45" customWidth="1"/>`).join('')}<col min="23" max="24" width="45" customWidth="1"/></cols><sheetData>${contents}</sheetData><autoFilter ref="A1:X${rows.length}"/></worksheet>`);
  zip['xl/workbook.xml']=strToU8(workbook.replace('</sheets>',`<sheet name="Review details" sheetId="${sheetId}" r:id="${relId}"/></sheets>`));
