@@ -48,7 +48,7 @@ const r0=v=>v===null||!Number.isFinite(v)?null:Math.round(v);
 export function recentBudgetOutcomes(all,key,year){
  const sum=(rows,field)=>{const values=rows.map(r=>r[field]).filter(Number.isFinite);return values.length?r0(values.reduce((a,b)=>a+b,0)):null;};
  const funding=r=>{const values=['school','provost','scc','unresolved'].map(k=>r[k]).filter(Number.isFinite);return values.length?values.reduce((a,b)=>a+b,0):null;};
- return [year-3,year-2,year-1].map(year=>{
+ return [year-2,year-1].map(year=>{
   const rows=all.filter(r=>r.unit_key===key&&r.year===year),requested=sum(rows,'requested'),school=sum(rows,'school');
   const known=rows.map(funding).filter(Number.isFinite),approved=known.length?r0(known.reduce((a,b)=>a+b,0)):null;
   const finalDeclines=rows.filter(r=>!r.declinedIsInitial),declined=sum(finalDeclines,'declined');

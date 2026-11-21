@@ -1,5 +1,5 @@
 import {workbookSourceHtml,sumRequestFunding} from '/budget-model.mjs';
-import {renderBudgetHistory} from '/budget-history.mjs';
+import {renderBudgetHistory,budgetComparison} from '/budget-history.mjs';
 // SoE HQ → Budget: cycle roll-up and unit pages. Data: /.netlify/functions/budget-hq-data
 const $=s=>document.querySelector(s);
 const root=$('#bh'),view=root.dataset.view,cycle=root.dataset.cycle,unitKey=root.dataset.unit;
@@ -153,7 +153,7 @@ function audit(){
 }
 
 // ---------- Dean's briefing ----------
-function recentOutcomes(){return renderBudgetHistory(data.recent_budget_outcomes||[]);}
+function recentOutcomes(){return renderBudgetHistory(budgetComparison(data.recent_budget_outcomes||[],data.lines||[],data.year));}
 function inlineRich(text){return esc(text).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');}
 function rich(text){if(!text.trim())return '<p class="bv-status">Nothing written yet.</p>';const out=[];let list=null;
  for(const raw of text.split('\n')){const line=raw.trimEnd(),m=/^\s*[-*•]\s+(.*)$/.exec(line);
