@@ -1,4 +1,5 @@
 import {workbookSourceHtml,sumRequestFunding} from '/budget-model.mjs';
+import {renderBudgetHistory} from '/budget-history.mjs';
 // SoE HQ → Budget: cycle roll-up and unit pages. Data: /.netlify/functions/budget-hq-data
 const $=s=>document.querySelector(s);
 const root=$('#bh'),view=root.dataset.view,cycle=root.dataset.cycle,unitKey=root.dataset.unit;
@@ -152,7 +153,7 @@ function audit(){
 }
 
 // ---------- Dean's briefing ----------
-function recentOutcomes(){return `<div class="bh-recent"><h3>Previous two years: asks and decisions</h3><p class="bv-status">Historical records. “Initial” identifies an initial approval where the final funding outcome is incomplete. Removed requests are shown separately from rejections. A dash means not recorded.</p><div class="bh-outcome-grid">${(data.recent_budget_outcomes||[]).map(y=>`<article class="bh-outcome"><h4>${fy(y.year)} · ${esc(y.outcome)}</h4>${y.lines?`<dl><dt>Asked, all funders</dt><dd>${money(y.requested)}${y.unpriced?' + unpriced lines':''}</dd><dt>Dean / SoE funding recorded</dt><dd>${money(y.school)}</dd><dt>Total funding recorded</dt><dd>${money(y.approved)}</dd></dl><ul class="bh-prior-asks">${(y.requests||[]).map(r=>`<li><p><strong>${esc(r.description)}</strong></p><p>Asked ${money(r.requested)} · <strong>${esc(r.status)}</strong>${r.approved!==null?' · Funding '+money(r.approved):''}</p></li>`).join('')}</ul>`:'<p>No request or funding outcome recorded for this year.</p>'}</article>`).join('')}</div></div>`;}
+function recentOutcomes(){return renderBudgetHistory(data.recent_budget_outcomes||[]);}
 function inlineRich(text){return esc(text).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');}
 function rich(text){if(!text.trim())return '<p class="bv-status">Nothing written yet.</p>';const out=[];let list=null;
  for(const raw of text.split('\n')){const line=raw.trimEnd(),m=/^\s*[-*•]\s+(.*)$/.exec(line);

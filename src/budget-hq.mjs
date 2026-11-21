@@ -48,7 +48,7 @@ const r0=v=>v===null||!Number.isFinite(v)?null:Math.round(v);
 export function recentBudgetOutcomes(all,key,year){
  const sum=(rows,field)=>{const values=rows.map(r=>r[field]).filter(Number.isFinite);return values.length?r0(values.reduce((a,b)=>a+b,0)):null;};
  const funding=r=>{const values=['school','provost','scc','unresolved'].map(k=>r[k]).filter(Number.isFinite);return values.length?values.reduce((a,b)=>a+b,0):null;};
- return [year-2,year-1].map(year=>{
+ return [year-3,year-2,year-1].map(year=>{
   const rows=all.filter(r=>r.unit_key===key&&r.year===year),requested=sum(rows,'requested'),school=sum(rows,'school');
   const known=rows.map(funding).filter(Number.isFinite),approved=known.length?r0(known.reduce((a,b)=>a+b,0)):null;
   const finalDeclines=rows.filter(r=>!r.declinedIsInitial),declined=sum(finalDeclines,'declined');
@@ -57,9 +57,9 @@ export function recentBudgetOutcomes(all,key,year){
   const requests=rows.map(r=>{
    const awarded=funding(r),rejected=r.declinedIsInitial?null:r.declined??null;
    const status=awarded>0?(Number.isFinite(r.requested)&&awarded>=r.requested?'Approved':'Partially approved'):rejected>0&&Number.isFinite(r.requested)&&rejected>=r.requested?'Rejected':r.decision==='Removed'?'Removed':r.decision==='Approved'?'Approved (initial)':rejected>0?'Partially rejected':'Not recorded';
-   return {description:String(r.revised||r.original||r.request||'Request').replace(/\s+/g,' ').trim(),requested:r.requested??null,approved:awarded,declined:rejected,status};
+   return {description:String(r.revised||r.original||r.request||'Request').replace(/\s+/g,' ').trim(),requested:r.requested??null,approved:awarded,declined:rejected,initial_declined:r.declinedIsInitial?r.declined??null:null,school:r.school??null,provost:r.provost??null,scc:r.scc??null,unresolved:r.unresolved??null,status,recorded_status:r.decision||'',record_id:r.record_id||null};
   });
-  return {year,lines:rows.length,requested,school,approved,declined,outcome,complete,requests,unpriced:rows.filter(r=>!Number.isFinite(r.requested)).length};
+  return {year,lines:rows.length,requested,school,provost:sum(rows,'provost'),scc:sum(rows,'scc'),unresolved:sum(rows,'unresolved'),initial_declined:sum(rows.filter(r=>r.declinedIsInitial),'declined'),approved,declined,outcome,complete,requests,unpriced:rows.filter(r=>!Number.isFinite(r.requested)).length};
  });
 }
 export function applyDecision(ask,dec){
