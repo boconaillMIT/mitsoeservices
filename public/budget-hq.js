@@ -1,8 +1,9 @@
 import {workbookSourceHtml,sumRequestFunding} from '/budget-model.mjs';
-import {renderBudgetHistory,budgetComparison} from '/budget-history.mjs';
+import {renderBudgetHistory,budgetComparison,bindBudgetPerspective} from '/budget-history.mjs';
 // SoE HQ → Budget: cycle roll-up and unit pages. Data: /.netlify/functions/budget-hq-data
 const $=s=>document.querySelector(s);
 const root=$('#bh'),view=root.dataset.view,cycle=root.dataset.cycle,unitKey=root.dataset.unit;
+bindBudgetPerspective(root);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fy=y=>'FY'+String(y).slice(-2);
 const money=v=>v===null||v===undefined||!Number.isFinite(v)?'—':(v<0?'-':'')+'$'+Math.round(Math.abs(v)).toLocaleString();
@@ -153,7 +154,7 @@ function audit(){
 }
 
 // ---------- Dean's briefing ----------
-function recentOutcomes(){return renderBudgetHistory(budgetComparison(data.recent_budget_outcomes||[],data.lines||[],data.year),{unitKey});}
+function recentOutcomes(){const perspective=root.querySelector('[data-history-perspective]')?.dataset.historyPerspective||'lines';return renderBudgetHistory(budgetComparison(data.recent_budget_outcomes||[],data.lines||[],data.year),{unitKey,perspective});}
 function inlineRich(text){return esc(text).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');}
 function rich(text){if(!text.trim())return '<p class="bv-status">Nothing written yet.</p>';const out=[];let list=null;
  for(const raw of text.split('\n')){const line=raw.trimEnd(),m=/^\s*[-*•]\s+(.*)$/.exec(line);
