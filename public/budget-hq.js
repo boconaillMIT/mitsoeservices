@@ -153,7 +153,7 @@ function audit(){
 }
 
 // ---------- Dean's briefing ----------
-function recentOutcomes(){return renderBudgetHistory(budgetComparison(data.recent_budget_outcomes||[],data.lines||[],data.year));}
+function recentOutcomes(){return renderBudgetHistory(budgetComparison(data.recent_budget_outcomes||[],data.lines||[],data.year),{unitKey});}
 function inlineRich(text){return esc(text).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');}
 function rich(text){if(!text.trim())return '<p class="bv-status">Nothing written yet.</p>';const out=[];let list=null;
  for(const raw of text.split('\n')){const line=raw.trimEnd(),m=/^\s*[-*•]\s+(.*)$/.exec(line);
