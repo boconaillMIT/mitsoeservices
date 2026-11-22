@@ -1,5 +1,5 @@
 import {startWalletComparison} from './wallet-comparison.mjs';
-import {startOptionalPurposeView} from './wallet-purpose-view.mjs';
+import * as purposeView from './wallet-purpose-view.mjs';
 import {walletDateSummary} from './report-dates.mjs';
 import {walletRows,numericAmount,closedAccount} from './wallet-table.mjs';
 import {renderWalletCharts} from './wallet-charts.mjs';
@@ -38,7 +38,9 @@ async function load(){
   const types=[...new Set(data.rows.map(r=>r.type))].sort();$('#resource-type').replaceChildren(...types.map(t=>new Option(t,t)));if(types.includes('GIB Carryforward'))$('#resource-type').value='GIB Carryforward';populateYears();render();
   $('#wallet-status').textContent=walletDateSummary(data);
   $('#wallet-content').hidden=false;
-  startOptionalPurposeView(data);
+  // Older published purpose modules expose initPurposeView only.
+  // Keep this optional view from preventing the wallet and comparison from starting.
+  try{const start=purposeView.startOptionalPurposeView||purposeView.initPurposeView;if(start&&$('#purpose-year')&&$('#purpose-filters'))Promise.resolve(start(data)).catch(error=>console.error('Wallet purpose view unavailable:',error));}catch(error){console.error('Wallet purpose view unavailable:',error);}
  }catch(e){data=null;$('#wallet-charts').replaceChildren();$('#wallet-cards').replaceChildren();$('#wallet-rows').replaceChildren();$('#wallet-status').textContent=e.message;}
 }
 $('#wallet-filters').addEventListener('submit',e=>e.preventDefault());
