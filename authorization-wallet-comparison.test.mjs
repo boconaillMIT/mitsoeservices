@@ -51,3 +51,8 @@ test('trend flags relative improvement in matched actual periods; projections an
  assert.equal(trendComparison(hq,points(example([[2026,100],[2027,120]],{projection:true}),'GIB Carryforward')),null);assert.equal(trendComparison(hq,points(example([[2026,100],[2027,120]],{period:'02'}),'GIB Carryforward')),null);
  assert.equal(trendComparison(hq,points(example([[2025,0],[2027,10]]),'GIB Carryforward')).stronger,null);
 });
+
+test('partially blank histories match existing wallet totals and show excluded blanks; payout is unit-wide',()=>{
+ const wallet=example([[2026,100],[2026,null],[2027,200]]),series=points(wallet,'GIB Carryforward');assert.equal(series[0].amount,100);assert.equal(series[0].blanks,1);
+ const payout={rows:[{type:'Pool A Payout',year:2026,admin:'',amount:50,period:'202616',projection:false}]};assert.equal(points(payout,'Pool A Payout')[0].amount,50);
+});
