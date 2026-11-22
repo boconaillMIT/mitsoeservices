@@ -12,12 +12,13 @@ const short=v=>v===null?'Unavailable':new Intl.NumberFormat('en-US',{style:'curr
 const exact=v=>v===null?'Unavailable':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(v);
 function node(tag,value,cls){const el=document.createElement(tag);if(value!==undefined)el.textContent=value;if(cls)el.className=cls;return el;}
 function svgNode(tag,attrs={},value){const el=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [key,val]of Object.entries(attrs))el.setAttribute(key,String(val));if(value!==undefined)el.textContent=value;return el;}
-export function renderWalletCharts(container,rows){
+export function renderWalletCharts(container,rows,{controller='Department'}={}){
+ const displayControls=controls.map(([key,label,color])=>[key,key==='department'?controller+' controlled':label,color]);
  container.replaceChildren();
  for(const type of ['GIB Carryforward','Expendable Fund Balance','GIB Base','Pool A Payout']){
   const points=historyPoints(rows,type),card=node('section',undefined,'card wallet-history');card.append(node('h2',type+' history'));
   if(!points.length){card.append(node('p','No history supplied for this resource.'));container.append(card);continue;}
-  const legend=node('div',undefined,'history-legend');for(const [,label,color]of controls){const entry=node('span'),swatch=node('i');swatch.style.backgroundColor=color;entry.append(swatch,document.createTextNode(label));legend.append(entry);}card.append(legend);
+  const legend=node('div',undefined,'history-legend');for(const [,label,color]of displayControls){const entry=node('span'),swatch=node('i');swatch.style.backgroundColor=color;entry.append(swatch,document.createTextNode(label));legend.append(entry);}card.append(legend);
   const width=Math.max(460,points.length*120),height=360,baseline=205;
   const positive=p=>controls.reduce((n,[key])=>n+Math.max(0,p[key]||0),0),negative=p=>controls.reduce((n,[key])=>n+Math.max(0,-(p[key]||0)),0);
   const maxPositive=Math.max(...points.map(positive),1),maxNegative=Math.max(...points.map(negative),0),scale=130/Math.max(maxPositive,maxNegative||1);
@@ -25,8 +26,8 @@ export function renderWalletCharts(container,rows){
   svg.append(svgNode('title',{},type+' history'),svgNode('line',{x1:15,x2:width-15,y1:baseline,y2:baseline,stroke:'#8b9b8d'}));
   points.forEach((p,i)=>{
    const x=(i+.5)*width/points.length,barWidth=Math.min(62,width/points.length*.55);let above=baseline,below=baseline;
-   svg.append(svgNode('text',{x,y:22,'text-anchor':'middle',class:'history-dept'},short(p.department)+' dept'),svgNode('text',{x,y:42,'text-anchor':'middle',class:'history-total'},short(p.total)+' total'));
-   for(const [key,label,color]of controls){const value=p[key];if(value===null||value===0)continue;const h=Math.abs(value)*scale,y=value>0?above-h:below;const rect=svgNode('rect',{x:x-barWidth/2,y,width:barWidth,height:h,fill:color,stroke:p.projection?'#4b6456':'none','stroke-dasharray':p.projection?'4 3':'none'});rect.append(svgNode('title',{},`FY${p.year} · ${label}: ${exact(value)}${p.projection?' · projected':''}`));svg.append(rect);if(value>0)above=y;else below+=h;}
+   svg.append(svgNode('text',{x,y:22,'text-anchor':'middle',class:'history-dept'},short(p.department)+(controller==='School'?' school':' dept')),svgNode('text',{x,y:42,'text-anchor':'middle',class:'history-total'},short(p.total)+' total'));
+   for(const [key,label,color]of displayControls){const value=p[key];if(value===null||value===0)continue;const h=Math.abs(value)*scale,y=value>0?above-h:below;const rect=svgNode('rect',{x:x-barWidth/2,y,width:barWidth,height:h,fill:color,stroke:p.projection?'#4b6456':'none','stroke-dasharray':p.projection?'4 3':'none'});rect.append(svgNode('title',{},`FY${p.year} · ${label}: ${exact(value)}${p.projection?' · projected':''}`));svg.append(rect);if(value>0)above=y;else below+=h;}
    // Keep the year and source notes below all negative segments.
    const labelY=baseline+maxNegative*scale+22;
    for(const [offset,value,cls]of [[0,'FY'+p.year,'history-year'],[19,p.projection?'Projected':p.periods.some(v=>v.endsWith('02'))?'Period 02 / source YTD':p.periods.length?'Year-end':'Carry-in / base','history-note'],[38,short(p.faculty)+' faculty','history-note'],[55,p.blanks?p.blanks+' source blanks':'','history-note']])svg.append(svgNode('text',{x,y:labelY+offset,'text-anchor':'middle',class:cls},value));
