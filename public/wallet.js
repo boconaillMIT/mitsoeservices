@@ -1,3 +1,4 @@
+import {startWalletComparison} from './wallet-comparison.mjs';
 import {startOptionalPurposeView} from './wallet-purpose-view.mjs';
 import {walletDateSummary} from './report-dates.mjs';
 import {walletRows,numericAmount,closedAccount} from './wallet-table.mjs';
@@ -46,4 +47,5 @@ for(const id of ['#resource-year','#resource-control','#account-search','#cost-o
 for(const [id,field] of [['#sort-cost-object','account'],['#sort-amount','amount']])$(id).onclick=()=>{$('#wallet-sort').value=field+($('#wallet-sort').value===field+'-desc'?'-asc':'-desc');page=1;if(data)render();};
 $('#wallet-clear').onclick=()=>{for(const id of ['#resource-control','#account-search','#cost-object-filter','#amount-min','#amount-max'])$(id).value='';$('#wallet-sort').value='amount-desc';page=1;if(data)render();};
 $('#wallet-prev').onclick=()=>{page--;render();};$('#wallet-next').onclick=()=>{page++;render();};
+startWalletComparison();
 await load();

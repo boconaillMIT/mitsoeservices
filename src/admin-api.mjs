@@ -1,3 +1,4 @@
+import authorizations from './authorization-summary.cjs';
 import access from './access.cjs';
 import policy from './policy.cjs';
 import {eventFrom} from './http.mjs';
@@ -12,7 +13,11 @@ export function createAdminHandler({authorize=access.authorize, change=policy.ch
       const grants=saved.data.grants.filter(g=>managed.includes(g.scope));
       return {users:[...new Set(grants.map(g=>g.username))],grants,scopes:Object.fromEntries(Object.entries(policy.SCOPES).filter(([key])=>managed.includes(key))),roleLabels:Object.fromEntries(managed.map(scope=>[scope,policy.roleLabels(scope)])),admins:grants.filter(g=>g.role==='admin').map(g=>g.username),protectedAdmins:policy.PROTECTED_ADMINS,audit:saved.data.audit.filter(a=>school||managed.includes(a.scope)),version:saved.etag};
     };
-    if (request.method === 'GET') return reply(200,view(result.actualPolicy||result.policy));
+    if (request.method === 'GET') {
+      const saved=result.testView?result.policy:(result.actualPolicy||result.policy),login=new URL(request.url).searchParams.get('username');
+      if(login!==null){const username=policy.normalizeLogin(login);if(!username)return reply(400,{error:'Enter a valid MIT login.'});const managed=result.testView?['soe-fake']:policy.managedScopes(saved.data,result.kerberos);return reply(200,{username,limitedToManagedAreas:!managed.includes('school'),authorizations:authorizations.authorizationSummary(saved.data,username,managed)});}
+      return reply(200,view(saved));
+    }
     if (request.method !== 'POST') return reply(405,{error:'GET or POST required.'});
     if (!process.env.APP_ORIGIN || request.headers.get('origin') !== process.env.APP_ORIGIN ||
         request.headers.get('content-type')?.split(';')[0].trim() !== 'application/json')

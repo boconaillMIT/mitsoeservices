@@ -1,5 +1,5 @@
 function mainNavigation({manage=false,schoolAdmin=false,schoolAccess=schoolAdmin,visibility={},active=''}={}){
- const links=[['home','/?home=1','Services Home']];
+ const links=[['home','/?home=1','Services Home'],['my-authorizations','/my-authorizations','My authorizations']];
  if(!visibility.compactUnits&&(visibility.academic??schoolAccess))links.push(['academic','/academic-units','Academic units']);
  if(!visibility.compactUnits&&(visibility.other??schoolAccess))links.push(['other','/other-units','Other units']);
  if(schoolAccess)links.push(['hq','/soe-hq','SoE HQ'],['budget','/soe-hq/budget','Budget','hq'],['budget-fy28','/soe-hq/budget/fy28','FY28 budget cycle','hq-2'] );

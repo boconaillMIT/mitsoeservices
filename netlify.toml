@@ -405,3 +405,9 @@
   to = "/.netlify/functions/security-review"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/my-authorizations"
+  to = "/.netlify/functions/dashboard?authorizations=1"
+  status = 200
+  force = true

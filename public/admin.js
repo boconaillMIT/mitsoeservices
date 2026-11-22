@@ -31,3 +31,15 @@ async function change(action,username,scope,role){
 form.elements.scope.addEventListener('change',roleOptions);
 form.addEventListener('submit',e=>{e.preventDefault();change('add',form.elements.username.value.trim().toLowerCase(),form.elements.scope.value,form.elements.role.value);});
 await load();
+
+
+const lookup=document.querySelector('#lookup-user'),lookupResults=document.querySelector('#lookup-results');
+lookup.addEventListener('submit',async event=>{
+ event.preventDefault();const login=document.querySelector('#lookup-login').value.trim();lookupResults.textContent='Checking current authorizations…';
+ try{const response=await fetch(endpoint+'?username='+encodeURIComponent(login),{credentials:'same-origin',cache:'no-store'}),data=await response.json();if(!response.ok)throw Error(data.error||'Unable to look up access.');
+ lookupResults.replaceChildren();const heading=document.createElement('h3');heading.textContent=data.username+'@mit.edu';lookupResults.append(heading);
+ if(data.limitedToManagedAreas){const note=document.createElement('p');note.textContent='Showing only the areas you administer.';lookupResults.append(note);}
+ if(!data.authorizations.length){const note=document.createElement('p');note.textContent='No authorizations'+(data.limitedToManagedAreas?' in the areas you administer.':'.');lookupResults.append(note);}
+ const grid=document.createElement('div');grid.className='authorization-grid';for(const entry of data.authorizations){const card=document.createElement('article');card.className='authorization-item';const title=document.createElement('h4');title.textContent=entry.name;const role=document.createElement('p');role.textContent=entry.label;const source=document.createElement('p');source.className='small';source.textContent=entry.source+(entry.directRole&&entry.source==='School-wide access'?' · also has a direct grant':'');card.append(title,role,source);grid.append(card);}lookupResults.append(grid);
+ }catch(error){lookupResults.textContent=error.message;}
+});
