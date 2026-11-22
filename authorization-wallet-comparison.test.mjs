@@ -42,9 +42,9 @@ test('missing or invalid snapshots are explicitly unavailable, never substituted
  const handler=createUnitDataHandler({authorize:auth('wide'),read:async scope=>scope==='cee'?null:payload(scope==='be'?'eecs':scope)});const data=JSON.parse((await handler({httpMethod:'GET',queryStringParameters:{unit:'school',action:'compare'}})).body);assert.deepEqual(data.unavailable.sort(),['be','cee']);assert.equal(data.wallets.length,9);
 });
 const example=(values,{period='12',projection=false}={})=>({cycle:2028,rows:values.map(([year,amount])=>({type:'GIB Carryforward',year,amount,admin:'DP',period:String(year)+period,projection}))});
-test('combined history requires all units and compatible periods with no blanks',()=>{
+test('combined history requires all units and compatible periods, preserving wallet carryforward zeros',()=>{
  const a=example([[2026,100],[2027,200]]),b=example([[2026,50],[2027,70]]);assert.deepEqual(combinedPoints([a,b],'GIB Carryforward',2).map(p=>p.amount),[150,270]);assert.deepEqual(combinedPoints([a],'GIB Carryforward',2),[]);
- assert.deepEqual(combinedPoints([a,example([[2026,50],[2027,null]])],'GIB Carryforward',2).map(p=>p.amount),[150,null]);assert(combinedPoints([a,example([[2026,50]],{period:'02'})],'GIB Carryforward',2).every(p=>p.amount===null));
+ assert.deepEqual(combinedPoints([a,example([[2026,50],[2027,null]])],'GIB Carryforward',2).map(p=>p.amount),[150,200]);assert(combinedPoints([a,example([[2026,50]],{period:'02'})],'GIB Carryforward',2).every(p=>p.amount===null));
 });
 test('trend flags relative improvement in matched actual periods; projections and zero bases are explicit',()=>{
  const hq=points(example([[2025,200],[2026,100],[2027,80]]),'GIB Carryforward'),peer=points(example([[2025,100],[2026,120],[2027,140]]),'GIB Carryforward');const result=trendComparison(hq,peer);assert.equal(result.stronger,true);assert.equal(result.hq.percent,-60);assert.equal(result.unit.percent,40);
@@ -55,4 +55,12 @@ test('trend flags relative improvement in matched actual periods; projections an
 test('partially blank histories match existing wallet totals and show excluded blanks; payout is unit-wide',()=>{
  const wallet=example([[2026,100],[2026,null],[2027,200]]),series=points(wallet,'GIB Carryforward');assert.equal(series[0].amount,100);assert.equal(series[0].blanks,1);
  const payout={rows:[{type:'Pool A Payout',year:2026,admin:'',amount:50,period:'202616',projection:false}]};assert.equal(points(payout,'Pool A Payout')[0].amount,50);
+});
+
+test('reported carryforward zero is plotted, without turning absent groups or other blank resources into zero',()=>{
+ const wallet=example([[2026,50],[2027,null],[2028,80]]),series=points(wallet,'GIB Carryforward');assert.equal(series[1].amount,0);assert.equal(series[1].walletZero,true);
+ const absent={rows:[{type:'GIB Carryforward',year:2027,admin:'FC',amount:100}]};assert.equal(points(absent,'GIB Carryforward')[0].amount,null);
+ const blankOther={rows:[{type:'Expendable Fund Balance',year:2027,admin:'DP',amount:null}]};assert.equal(points(blankOther,'Expendable Fund Balance')[0].amount,null);
+ const hq=points(example([[2026,100],[2027,110],[2028,120]]),'GIB Carryforward');assert.equal(trendComparison(hq,series).from,2026);assert.equal(trendComparison(hq,series).to,2028);
+ const combined=combinedPoints([wallet,example([[2026,20],[2027,10],[2028,30]])],'GIB Carryforward',2);assert.equal(combined[1].amount,10);assert.equal(combined[1].walletZero,false);
 });
