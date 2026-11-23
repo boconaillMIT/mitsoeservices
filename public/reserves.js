@@ -1,3 +1,4 @@
+import {reserveMetrics} from './reserve-metrics.mjs';
 // Reserves vs. spending. Data: /.netlify/functions/reserves-data (school administrators only).
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -33,9 +34,8 @@ function compute(){
  return data.units.map(u=>{
   const yr=u.years.find(y=>y.year===state.year),reserveOf=y=>y.reserve+(state.defn==='faculty'?y.faculty:0);
   if(!yr)return {...u,row:null};
-  const commitments=state.commit==='yes'&&state.year===latest&&u.open_commitments!==null?u.open_commitments:0;
-  const reserve=reserveOf(yr),free=reserve-commitments;
-  const months=yr.resources>0?free/(yr.resources/12):null;
+  const metric=reserveMetrics(yr,{includeFaculty:state.defn==='faculty',unpaidSoeSupport:u.open_commitments}),commitments=state.commit==='yes'?metric.unpaidSoeSupport:null;
+  const reserve=metric.balance,free=reserve,months=metric.months;
   const span=u.years.filter(y=>y.year<=state.year),first=span[0];
   const growth=first&&first.year<state.year&&yr.resources>0?(reserveOf(yr)-reserveOf(first))/(state.year-first.year)/yr.resources:null;
   const hot=months!==null&&months>state.high&&growth!==null&&growth>0;
@@ -50,8 +50,8 @@ function controls(){
  $('#rv-group').innerHTML=opt('academic','Academic departments',state.group)+opt('other','Labs, centers & programs',state.group)+opt('all','All SoE units',state.group);
  $('#rv-unit').innerHTML=opt('','— No unit selected —',state.focus||'')+[...data.units].sort((a,b)=>a.label.localeCompare(b.label)).map(u=>opt(u.scope,u.label+' — '+u.name,state.focus)).join('');
  $('#rv-view').innerHTML=opt('full','Full view (all names)',state.view)+opt('share','Share view (selected unit only)',state.view);
- $('#rv-defn').innerHTML=opt('department','Department discretionary only',state.defn)+opt('faculty','Department + faculty-controlled',state.defn);
- $('#rv-commit').innerHTML=opt('yes','Subtract open commitments',state.commit)+opt('no','Before commitments',state.commit);
+ $('#rv-defn').innerHTML=opt('department','Department general + GIB',state.defn)+opt('faculty','Department + faculty-controlled',state.defn);
+ $('#rv-commit').innerHTML=opt('yes','Show unpaid SoE support',state.commit)+opt('no','Hide support column values',state.commit);
  $('#rv-high').innerHTML=[6,9,12,18,24].map(m=>opt(m,'Above '+m+' months',state.high)).join('');
 }
 
@@ -60,14 +60,14 @@ function kpis(rows){
  const tile=(label,value,note)=>`<div class="bv-kpi"><span>${label}</span><strong>${value}</strong><small>${note}</small></div>`;
  if(share()){const u=r.find(x=>x.scope===state.focus);if(!u){$('#rv-kpis').innerHTML='';return;}
   const rank=[...r].filter(x=>x.row.months!==null).sort((a,b)=>b.row.months-a.row.months).findIndex(x=>x.scope===u.scope)+1;
-  $('#rv-kpis').innerHTML=tile(esc(u.label)+' reserve',mo(u.row.months)+' mo','of annual discretionary resources, '+fy(state.year))+
+  $('#rv-kpis').innerHTML=tile(esc(u.label)+' balance ratio',mo(u.row.months)+' mo','of annual discretionary resources, '+fy(state.year))+
    tile('Median of peers',mo(median(r.map(x=>x.row.months)))+' mo',r.length+' '+GROUP_LABEL[state.group])+
    tile('Change per year',pct(u.row.growth),'since '+fy(u.row.from)+', % of annual resources')+
-   tile('Position',rank?rank+' of '+r.length:'—','1 = largest reserve relative to resources');return;}
+   tile('Position',rank?rank+' of '+r.length:'—','1 = largest balance relative to resources');return;}
  $('#rv-kpis').innerHTML=
   tile('Units accumulating',hot.length+' of '+r.length,'above '+state.high+' months and growing')+
-  tile('Median reserve',mo(median(r.map(u=>u.row.months)))+' mo','of annual discretionary resources')+
-  tile('Discretionary reserves',short(r.reduce((s,u)=>s+u.row.free,0)),state.commit==='yes'?'after open commitments, '+fy(state.year):fy(state.year)+' year-end')+
+  tile('Median balance ratio',mo(median(r.map(u=>u.row.months)))+' mo','of annual discretionary resources')+
+  tile('General + GIB balances',short(r.reduce((s,u)=>s+u.row.free,0)),fy(state.year)+' year-end · before department obligations')+
   tile((data.ask_year?fy(data.ask_year):'FY')+' asks from accumulating units',short(hot.reduce((s,u)=>s+(u.ask||0),0)),'requested from Provost/School');
 }
 
@@ -83,7 +83,7 @@ function chart(rows){
  const maxAsk=Math.max(1,...r.map(u=>u.ask||0)),rad=u=>share()?(u.scope===state.focus?11:8):7+Math.sqrt((u.ask||0)/maxAsk)*26;
  const step=xmax>40?10:xmax>20?5:3,ticksX=[];for(let v=Math.ceil(xmin/step)*step;v<=xmax;v+=step)ticksX.push(v);
  const yStep=(yhi-ylo)>.8?.2:.1,ticksY=[];for(let v=Math.ceil(ylo/yStep)*yStep;v<=yhi+1e-9;v+=yStep)ticksY.push(Math.round(v*100)/100);
- let s=`<svg viewBox="0 0 ${W} ${H}" class="rv-svg" role="img" aria-label="Units plotted by months of discretionary reserve and yearly change in reserve; bubble size is the latest budget request.">`;
+ let s=`<svg viewBox="0 0 ${W} ${H}" class="rv-svg" role="img" aria-label="Units plotted by balance in months of annual resources and yearly change in reserve; bubble size is the latest budget request.">`;
  s+=`<rect x="${X(state.high)}" y="${T}" width="${L+iw-X(state.high)}" height="${Y(0)-T}" fill="rgba(200,87,42,.07)"/>`;
  s+=`<rect x="${X(Math.max(xmin,3))}" y="${T}" width="${X(Math.min(state.high,xmax))-X(Math.max(xmin,3))}" height="${ih}" fill="rgba(127,152,121,.06)"/>`;
  for(const v of ticksY)s+=`<line x1="${L}" x2="${L+iw}" y1="${Y(v)}" y2="${Y(v)}" class="rv-grid"/><text x="${L-8}" y="${Y(v)+4}" class="rv-tick" text-anchor="end">${pct(v)}</text>`;
@@ -93,7 +93,7 @@ function chart(rows){
  s+=`<text x="${L+iw-8}" y="${T+16}" class="rv-zone hot" text-anchor="end">Accumulating</text><text x="${L+iw-8}" y="${T+ih-8}" class="rv-zone" text-anchor="end">Large reserve, drawing down</text>`;
  s+=`<text x="${L+8}" y="${T+16}" class="rv-zone">Building</text><text x="${L+8}" y="${T+ih-8}" class="rv-zone">Thin and falling</text>`;
  s+=`<text x="${X((Math.max(xmin,3)+Math.min(state.high,xmax))/2)}" y="${T+ih-8}" class="rv-zone" text-anchor="middle">Healthy band</text>`;
- s+=`<text x="${L+iw/2}" y="${H-8}" class="rv-axis" text-anchor="middle">Months of discretionary reserve${state.commit==='yes'?' after open commitments':''} (${fy(state.year)} year-end)</text>`;
+ s+=`<text x="${L+iw/2}" y="${H-8}" class="rv-axis" text-anchor="middle">Balance in months of annual resources (${fy(state.year)} year-end)</text>`;
  s+=`<text transform="translate(16 ${T+ih/2}) rotate(-90)" class="rv-axis" text-anchor="middle">Change in reserve per year, % of annual resources</text>`;
  const order=[...r].sort((a,b)=>(a.scope===state.focus)-(b.scope===state.focus)||rad(b)-rad(a));
  for(const u of order){const x=X(u.row.months),y=Y(u.row.growth),rr=rad(u),sel=u.scope===state.focus;
@@ -109,9 +109,8 @@ function chart(rows){
 
 const COLS=[
  ['label','Unit',u=>esc(u.label),u=>u.label],
- ['reserve','Reserve',u=>short(u.row.reserve_def),u=>u.row.reserve_def,1],
- ['commit','Open commitments',u=>state.commit==='yes'&&u.row.commitments?short(u.row.commitments)+(u.incomplete_commitments?'<sup title="Some commitments have missing amounts and are not subtracted">*</sup>':''):'—',u=>u.row.commitments,1],
- ['free','Uncommitted',u=>short(u.row.free),u=>u.row.free,1],
+ ['reserve','General + GIB balance',u=>short(u.row.reserve_def),u=>u.row.reserve_def,1],
+ ['commit','Unpaid SoE support (today)',u=>state.commit==='yes'&&u.row.commitments?short(u.row.commitments)+(u.incomplete_commitments?'<sup title="Some SoE support amounts are incomplete">*</sup>':''):'—',u=>u.row.commitments,1],
  ['resources','Annual resources',u=>short(u.row.resources),u=>u.row.resources,1],
  ['months','Months',u=>`<strong>${mo(u.row.months)}</strong>`,u=>u.row.months??-1e9,1],
  ['growth','Change / yr',u=>pct(u.row.growth),u=>u.row.growth??-1e9,1],
@@ -119,7 +118,7 @@ const COLS=[
  ['faculty','Faculty-controlled',u=>short(u.row.faculty),u=>u.row.faculty,1],
  ['restricted','Restricted dept.',u=>short(u.row.restricted),u=>u.row.restricted,1],
  ['ask','Ask',u=>short(u.ask),u=>u.ask??-1,1],
- ['share','Ask ÷ uncommitted',u=>pctPlain(u.row.askShare),u=>u.row.askShare??-1,1]
+ ['share','Ask ÷ balance',u=>pctPlain(u.row.askShare),u=>u.row.askShare??-1,1]
 ];
 function shareTable(rows){
  const r=rows.filter(u=>u.row),me=r.find(u=>u.scope===state.focus);
@@ -151,12 +150,12 @@ function detail(rows){
   return `<div class="rv-bar">${segs.map(([v,c,l])=>`<i style="width:${Math.max(0,v)/max*100}%;background:${c}" title="${l}: ${short(v)}"></i>`).join('')}</div>`;};
  $('#rv-detail').innerHTML=`<div class="bv-legend"><span><i style="background:#2f6f5a"></i>GIB carried forward</span><span><i style="background:#86b49f"></i>Department general funds</span>${state.defn==='faculty'?'<span><i style="background:#d7c08a"></i>Faculty-controlled</span>':''}</div>
  <table class="bv-table"><thead><tr><th>Year-end</th><th style="width:34%">Reserve</th><th class="n">Reserve</th><th class="n">GIB base</th><th class="n">Payout (general)</th><th class="n">Months</th><th class="n">GIB used</th><th class="n">Restricted dept.</th><th class="n">Faculty-controlled</th></tr></thead><tbody>${u.years.map(y=>{const res=y.reserve+(state.defn==='faculty'?y.faculty:0);return `<tr><td>${fy(y.year)}</td><td>${bar(y)}</td><td class="n">${short(res)}</td><td class="n">${short(y.gib_base)}</td><td class="n">${short(y.payout_general)}</td><td class="n">${mo(y.resources>0?res/(y.resources/12):null)}</td><td class="n">${pctPlain(y.gib_use_rate)}</td><td class="n">${short(y.restricted)}</td><td class="n">${short(y.faculty)}</td></tr>`;}).join('')}</tbody></table>
- <p class="bv-status">Open commitments today: ${u.open_commitments===null?'unavailable':short(u.open_commitments)+' across '+u.open_commitment_count+' commitment'+(u.open_commitment_count===1?'':'s')}${u.incomplete_commitments?' ('+u.incomplete_commitments+' with missing amounts, not subtracted)':''}. ${data.ask_year?fy(data.ask_year):'Latest'} request: ${short(u.ask)}. Statement published ${u.statement_published_at?new Date(u.statement_published_at).toLocaleDateString():'—'}.</p>`;
+ <p class="bv-status">Unpaid SoE support today: ${u.open_commitments===null?'unavailable':short(u.open_commitments)+' across '+u.open_commitment_count+' commitment'+(u.open_commitment_count===1?'':'s')}${u.incomplete_commitments?' ('+u.incomplete_commitments+' with incomplete amounts)':''}. ${data.ask_year?fy(data.ask_year):'Latest'} request: ${short(u.ask)}. Statement published ${u.statement_published_at?new Date(u.statement_published_at).toLocaleDateString():'—'}.</p>`;
 }
 
 function notes(){
  const d=data.definitions;
- $('#rv-method').innerHTML=`<ul>${[['Reserve',d.reserve],['Annual resources',d.resources],['Months',d.months],['Change per year',d.trend],['GIB used',d.gib_use_rate],['Not counted',d.excluded],['Commitments','Open commitments recorded in QuickBase (unpaid amounts) are subtracted from the latest year only, when that option is on.']].map(([k,v])=>`<li><strong>${k}:</strong> ${esc(v)}</li>`).join('')}</ul>${data.notes.length&&!share()?'<p class="bv-status">'+data.notes.map(esc).join(' ')+'</p>':''}<p class="bv-status">Generated ${new Date(data.generated_at).toLocaleString()}.</p>`;
+ $('#rv-method').innerHTML=`<ul>${[['Reserve',d.reserve],['Annual resources',d.resources],['Months',d.months],['Change per year',d.trend],['GIB used',d.gib_use_rate],['Not counted',d.excluded],['Unpaid SoE support','These are outstanding School commitments to units, shown separately. They are neither deducted from nor added to unit balances. Department obligations and restrictions have not been reconciled to establish uncommitted funds.']].map(([k,v])=>`<li><strong>${k}:</strong> ${esc(v)}</li>`).join('')}</ul>${data.notes.length&&!share()?'<p class="bv-status">'+data.notes.map(esc).join(' ')+'</p>':''}<p class="bv-status">Generated ${new Date(data.generated_at).toLocaleString()}.</p>`;
 }
 
 function syncUrl(){const q=new URLSearchParams();if(state.group!=='academic')q.set('group',state.group);if(state.focus)q.set('unit',state.focus);if(state.view==='share')q.set('view','share');history.replaceState(null,'',location.pathname+(q.size?'?'+q:''));}

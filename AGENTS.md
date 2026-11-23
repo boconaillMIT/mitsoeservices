@@ -88,6 +88,8 @@ Budget briefing release invariant: for every user with wallet access, keep the p
 
 Budget submission release invariant: keep the full-submission link at the top of each unit briefing when files are available. Submission bytes belong in the dedicated QuickBase file table, never public assets or Git. Recheck the same budget unit permission on every list and download request, including copied links and revoked grants. Browser-check top links for all units with published materials, scoped viewers, failed loading/retry, and preservation of the wallet extract.
 
+Reserve comparison invariant: School outgoing commitments assigned to a unit are support owed to that unit. Show unpaid SoE support separately; never subtract it from or add it to the department wallet balance. Months are a balance-to-annual-resources comparison ratio, not verified uncommitted spending runway. Use the shared reserve-metrics model in the budget briefing and reserves report.
+
 Never promote a draft via the restore API: drafts lack production environment variables, which
 caused a 503 once. Long uploads need generous timeouts (scripts allow 20 minutes, with retries).
 

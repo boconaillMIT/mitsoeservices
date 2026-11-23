@@ -1,4 +1,4 @@
-// Reserves vs. spending: how much freely spendable money each unit holds relative to its
+// Reserves vs. spending: department general balances and GIB carryforward relative to its
 // annual discretionary resources, whether that reserve is growing, how much of each year's
 // General Institute Budget (GIB) it actually used, and what it is asking for in FY28.
 //
@@ -76,9 +76,9 @@ export async function loadReserves({group='academic',read=readUnit,query=qbReque
  let commitments=null;
  try{const data=await loadCommitments(query,'all');commitments={};let unassigned=0,incomplete=0;
   for(const c of data.commitments.map(c=>unpaidClassification(c,data.payments))){if(c.archived)continue;if(!c.unit){unassigned++;continue;}const scope=units.permissionScope(c.unit);const e=commitments[scope]||={unpaid:0,count:0,incomplete:0};e.count++;if(c.unpaid===null){e.incomplete++;incomplete++;}else e.unpaid+=c.unpaid;}
-  if(unassigned)notes.push(unassigned+' open commitments are not assigned to a unit and are not subtracted anywhere.');
-  if(incomplete)notes.push(incomplete+' open commitments have missing amounts or payments and are not subtracted.');
- }catch(e){console.error('Reserves: commitments unavailable:',e.message);notes.push('Commitments could not be read from QuickBase; reserves are shown before commitments.');}
+  if(unassigned)notes.push(unassigned+' unpaid SoE support commitments are not assigned to a unit.');
+  if(incomplete)notes.push(incomplete+' unpaid SoE support commitments have incomplete amounts or payments.');
+ }catch(e){console.error('Reserves: commitments unavailable:',e.message);notes.push('Unpaid SoE support could not be read from QuickBase; wallet balances are unchanged.');}
  let asks=null,askYear=null;
  try{const {selected,raw}=await budget();const rows=raw.map(r=>mapRecord(Object.fromEntries(selected.map(f=>[f.label,safeValue(r[String(f.id)]?.value)])))).filter(r=>!r.facultyHireSlot);
   askYear=Math.max(...rows.map(r=>r.year).filter(Number.isInteger));asks={};const unmatched=new Set();
@@ -95,7 +95,7 @@ export async function loadReserves({group='academic',read=readUnit,query=qbReque
  return {generated_at:new Date().toISOString(),group,ask_year:askYear,units:result,notes,
   definitions:{reserve:'Department-controlled "Department - general" expendable balance plus department-controlled GIB carried forward, at fiscal year-end.',
    resources:'Department-controlled GIB base plus Pool A endowment payout on department-controlled general accounts, for the same fiscal year.',
-   months:'Reserve divided by one month of annual discretionary resources.',
+   months:'Published general balance plus GIB carryforward divided by one month of annual GIB base and general-fund payout. This comparison ratio does not establish uncommitted spending runway.',
    trend:'Change in reserve per year over the years shown, as a share of the latest year\'s annual resources.',
    gib_use_rate:'Share of the year\'s available GIB (base plus carry-in) that was used rather than carried forward.',
    excluded:'Restricted department funds (research, professorships, graduate support, other restricted, building) and faculty-controlled funds are shown separately and are not counted in the reserve.'}};

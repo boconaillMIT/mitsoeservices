@@ -1,3 +1,4 @@
+import {reserveMetrics} from '../public/reserve-metrics.mjs';
 import {consolidateHistoryRows} from './budget-history-groups.mjs';
 // SoE HQ budget cycle: per-unit request lines (QuickBase budget table), draft decisions
 // (decline / support at a % with an SoE vs Provost split), roll-ups and CSV export.
@@ -84,7 +85,7 @@ async function reserveSnapshot(key,{reserves=loadReserves,now=Date.now()}={}){
  const group=Object.hasOwn(units.UNITS,key)?'academic':'other';const hit=reserveCache.get(group);
  let data=hit&&now-hit.at<5*60*1000?hit.data:null;if(!data){data=await reserves({group});reserveCache.set(group,{at:now,data});}
  const me=data.units.find(u=>u.scope===key);if(!me)return null;
- const latest=y=>y.years[y.years.length-1],point=u=>{const y=latest(u);if(!y||!u.trend)return null;const free=y.reserve-(u.open_commitments||0);return {months:y.resources>0?Math.round(free/(y.resources/12)*10)/10:null,growth:u.trend.per_year_pct_of_resources};};
+ const latest=y=>y.years[y.years.length-1],point=u=>{const y=latest(u);if(!y||!u.trend)return null;const metric=reserveMetrics(y,{unpaidSoeSupport:u.open_commitments});return {months:metric.months,balance:metric.balance,growth:u.trend.per_year_pct_of_resources};};
  return {group,definitions:data.definitions,unit:{...me,point:point(me)},peers:data.units.filter(u=>u.scope!==key).map(point).filter(p=>p&&p.months!==null)};
 }
 

@@ -58,9 +58,9 @@ function renderUnit(){
   +tile('HQ support so far',short(t.supported),t.supported?`SoE ${short(t.soe)} · Provost ${short(t.provost)}`:t.pending+' lines pending')
   +tile(prev?fy(prev.year)+' approved':'Last approved',short(prev?.approved),prev?'of '+short(prev.requested)+' requested':'')
   +tile('3-year approval rate',pct(rate),last3.length?fy(last3[0].year)+'–'+fy(last3[last3.length-1].year):'')
-  +(r?tile('Months of reserve',mo(r.unit.point?.months),'after open commitments, '+(ry?fy(ry.year):'')):'')
+  +(r?tile('Balance / annual resources',mo(r.unit.point?.months)+' months','Wallet balance ratio, '+(ry?fy(ry.year):'')):'')
   +(r?tile('GIB used',pct(ry?.gib_use_rate),ry?fy(ry.year):''):'')
-  +(r?tile('Open commitments',short(r.unit.open_commitments),(r.unit.open_commitment_count??0)+' commitments'):'')}</div>
+  +(r?tile('Unpaid SoE support',short(r.unit.open_commitments),(r.unit.open_commitment_count??0)+' School commitments · not deducted'):'')}</div>
  ${data.storage_ready?'':'<p class="bv-status error bh-noprint">HQ decisions, the briefing and the documents link are read-only until the QuickBase tables are connected.</p>'}
  <section class="bv-panel bh-brief"><div class="bh-head"><h2>Dean’s briefing</h2><span class="bv-status bh-noprint">${data.can_edit?'Use Edit to update a section; each section saves on its own.':'Prepared by SoE HQ.'}</span></div>${data.wallet_extract_allowed?`<section class="bh-wallet-extract" aria-label="Published wallet extract"><div class="bh-head"><h3>Published wallet extract</h3><a class="bh-noprint" href="${unitKey==='school'?'/soe-wallet':(u.academic?'/units/':'/other-units/')+encodeURIComponent(unitKey)+'/wallet'}">Open full wallet →</a></div><p class="bv-status" role="status" data-wallet-status>Loading the published wallet extract…</p><div class="wallet-history-grid bh-wallet-charts" data-wallet-charts></div><button type="button" class="bh-noprint" data-wallet-retry hidden>Retry wallet extract</button></section>`:''}${recentOutcomes()}<div id="bh-notes"></div></section>
  <section class="bv-panel"><h2>${fy(data.year)} requests and HQ decisions</h2>${data.can_edit?'<p class="bv-status bh-noprint">Set each line to decline or support. Support level is the share of the request supported. SoE share is the part the School funds, and the rest goes to the Provost as cost share. Save each line.</p>':'<p class="bv-status">Read-only.</p>'}
@@ -140,10 +140,10 @@ function position(){
  let s=`<svg viewBox="0 0 ${W} ${H}" class="bh-svg" role="img" aria-label="${esc(data.unit.label)} among ${r.peers.length} unnamed peers by months of reserve and yearly change"><rect x="${X(12)}" y="${T}" width="${L+iw-X(12)}" height="${Y(0)-T}" fill="rgba(200,87,42,.07)"/>`;
  s+=`<line x1="${L}" x2="${L+iw}" y1="${Y(0)}" y2="${Y(0)}" class="rv-ref"/><line x1="${X(12)}" x2="${X(12)}" y1="${T}" y2="${T+ih}" class="rv-ref"/>`;
  for(const v of [0,6,12,18,24,30,36].filter(v=>v<=xmax))s+=`<text x="${X(v)}" y="${T+ih+14}" class="rv-tick" text-anchor="middle">${v}</text>`;
- s+=`<text x="${L+iw/2}" y="${H-4}" class="rv-tick" text-anchor="middle">Months of discretionary reserve after open commitments</text><text x="${L-6}" y="${Y(0)+4}" class="rv-tick" text-anchor="end">0%</text>`;
+ s+=`<text x="${L+iw/2}" y="${H-4}" class="rv-tick" text-anchor="middle">Balance in months of annual resources</text><text x="${L-6}" y="${Y(0)+4}" class="rv-tick" text-anchor="end">0%</text>`;
  for(const p of r.peers)s+=`<circle cx="${X(p.months)}" cy="${Y(p.growth)}" r="7" fill="rgba(154,165,151,.38)" stroke="#9aa597"/>`;
  s+=`<g><title>${esc(data.unit.label)}: ${mo(me.months)} months, ${signed(me.growth)} per year</title><circle cx="${X(me.months)}" cy="${Y(me.growth)}" r="10" fill="rgba(29,79,143,.85)" stroke="#1d4f8f" stroke-width="2"/><text x="${X(me.months)}" y="${Y(me.growth)-15}" class="rv-label sel" text-anchor="middle">${esc(data.unit.label)}</text></g>`;
- $('#bh-position').innerHTML=s+`</svg><p class="bv-status">${mo(me.months)} months of reserve, ${signed(me.growth)} per year, among ${r.peers.length} ${r.group==='academic'?'academic departments':'other units'} (not named). Shaded corner is above 12 months and growing.</p>`;
+ $('#bh-position').innerHTML=s+`</svg><p class="bv-status">${mo(me.months)} months of annual resources, ${signed(me.growth)} per year, among ${r.peers.length} ${r.group==='academic'?'academic departments':'other units'} (not named). Shaded corner is above 12 months and growing.</p>`;
 }
 function wallet(){
  const r=data.reserves;if(!r||!r.unit.years.length){$('#bh-wallet').innerHTML='<p class="bv-status">No verified wallet statement is available for this unit.</p>';return;}
@@ -151,7 +151,7 @@ function wallet(){
  $('#bh-wallet').innerHTML=`<div class="bv-legend"><span><i style="background:#2f6f5a"></i>GIB carried forward</span><span><i style="background:#86b49f"></i>Department general funds</span></div>
  <table class="bv-table"><thead><tr><th>Year-end</th><th style="width:30%">Discretionary reserve</th><th class="n">Reserve</th><th class="n">GIB base</th><th class="n">Payout (general)</th><th class="n">Months</th><th class="n">GIB used</th><th class="n">Restricted dept.</th><th class="n">Faculty-controlled</th></tr></thead><tbody>
  ${ys.map(y=>`<tr><td>${fy(y.year)}</td><td><div class="rv-bar"><i style="width:${y.gib_carry/max*100}%;background:#2f6f5a"></i><i style="width:${y.general/max*100}%;background:#86b49f"></i></div></td><td class="n">${short(y.reserve)}</td><td class="n">${short(y.gib_base)}</td><td class="n">${short(y.payout_general)}</td><td class="n">${mo(y.months)}</td><td class="n">${pct(y.gib_use_rate)}</td><td class="n">${short(y.restricted)}</td><td class="n">${short(y.faculty)}</td></tr>`).join('')}</tbody></table>
- <p class="bv-status">From the unit’s verified wallet statement${r.unit.statement_published_at?' (published '+new Date(r.unit.statement_published_at).toLocaleDateString()+')':''}. Months shown here are before commitments.</p>`;
+ <p class="bv-status">From the unit’s verified wallet statement${r.unit.statement_published_at?' (published '+new Date(r.unit.statement_published_at).toLocaleDateString()+')':''}. Months compare the published balance with annual resources; they do not establish uncommitted spending runway.</p>`;
 }
 function logLocal(kind,item,change){(data.log||=[]).unshift({at:new Date().toISOString(),by:'you',kind,item,change});}
 function audit(){

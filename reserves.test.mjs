@@ -41,7 +41,7 @@ test('loadReserves combines managed wallets, survives QuickBase outages and repo
  assert.equal(aa.years.find(y=>y.year===2026).reserve,1800);
  assert.deepEqual(nse.years,[]);assert.deepEqual(nse.missing_wallets,['nse']);
  assert.equal(aa.open_commitments,null);assert.equal(aa.ask,null);
- assert.ok(r.notes.some(n=>/Commitments could not be read/.test(n)));assert.ok(r.notes.some(n=>/Budget requests could not be read/.test(n)));
+ assert.ok(r.notes.some(n=>/Unpaid SoE support could not be read/.test(n)));assert.ok(r.notes.some(n=>/Budget requests could not be read/.test(n)));
  assert.ok(!r.units.some(u=>u.scope==='soe-fake'));
 });
 test('latest-year asks are matched to units by canonical name',async()=>{
