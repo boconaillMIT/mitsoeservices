@@ -1,0 +1,9 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {walletReconciliation} from './public/wallet-reconciliation.mjs';import {historyPoints} from './public/wallet-charts.mjs';
+const row=(classification,admin,amount,extra={})=>({type:'Expendable Fund Balance',year:2026,classification,admin,amount,...extra});
+test('Budget Office categories reconcile to every control subtotal and the unchanged chart total',()=>{
+ const rows=[row('Department - general','DP',100.11),row('Department - general','FC',200.22),row('Department - general','FC',-10),row('Teaching','DP',50.33,{is_closed:true}),row('Teaching','SP',4.44),row('Small fund','DP',0.01),row('Inactive','DP',null),row('Other year','DP',999,{year:2025})];const result=walletReconciliation(rows,2026),chart=historyPoints(rows,'Expendable Fund Balance').find(p=>p.year===2026);
+ assert.equal(result.categories.find(r=>r.label==='Department - general').department,100.11);assert.equal(result.categories.find(r=>r.label==='Department - general').faculty,190.22);assert.equal(result.categories.find(r=>r.label==='Teaching').department,50.33);assert.equal(result.categories.find(r=>r.label==='Small fund').total,0.01);assert(!result.categories.some(r=>r.label==='Inactive'));for(const key of ['department','faculty','other','total'])assert.equal(result.totals[key],chart[key]);
+});
+test('keeps offsetting control balances and original labels without creating a fund-purpose assumption',()=>{
+ const rows=[row('<Original category>','DP',25),row('<Original category>','FC',-25),row('Zero category','DP',0)];const result=walletReconciliation(rows,2026);assert.equal(result.categories.length,1);assert.equal(result.categories[0].label,'<Original category>');assert.equal(result.categories[0].total,0);assert.equal(result.totals.department,25);assert.equal(result.totals.faculty,-25);
+});

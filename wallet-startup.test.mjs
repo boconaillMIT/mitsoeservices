@@ -9,11 +9,11 @@ import {spawnSync} from 'node:child_process';
 for(const version of ['legacy','current'])test('wallet and comparison start with '+version+' optional purpose module',async()=>{
  const directory=await mkdtemp(join(tmpdir(),'wallet-startup-'));
  try{
-  for(const name of ['wallet.js','wallet-comparison.mjs','wallet-comparison-model.mjs','budget-submission.mjs'])await writeFile(join(directory,name==='wallet.js'?'wallet.mjs':name),await readFile(new URL('./public/'+name,import.meta.url)));
+  for(const name of ['wallet.js','wallet-comparison.mjs','wallet-comparison-model.mjs','budget-submission.mjs','wallet-reconciliation.mjs'])await writeFile(join(directory,name==='wallet.js'?'wallet.mjs':name),await readFile(new URL('./public/'+name,import.meta.url)));
   await writeFile(join(directory,'wallet-purpose-view.mjs'),version==='legacy'?'export function initPurposeView(){}':'export function startOptionalPurposeView(){}');
   await writeFile(join(directory,'report-dates.mjs'),'export const walletDateSummary=()=>"Example date";');
   await writeFile(join(directory,'wallet-table.mjs'),'export const walletRows=()=>[],numericAmount=()=>null,closedAccount=()=>false;');
-  await writeFile(join(directory,'wallet-charts.mjs'),'export function renderWalletCharts(){}');
+  await writeFile(join(directory,'wallet-charts.mjs'),'export function renderWalletCharts(){};export const historyPoints=()=>[];');
   const script=`
    import assert from 'node:assert/strict';
    const nodes=new Map();globalThis.document={body:{dataset:{wallet:'school'}},querySelector(selector){if(!nodes.has(selector))nodes.set(selector,{listeners:[],addEventListener(name,callback){this.listeners.push(name);},replaceChildren(){},hidden:false,textContent:''});return nodes.get(selector);}};

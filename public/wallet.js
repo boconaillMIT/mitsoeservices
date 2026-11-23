@@ -1,3 +1,4 @@
+import {renderWalletReconciliation} from './wallet-reconciliation.mjs';
 import {submissionHtml} from './budget-submission.mjs';
 import {startWalletComparison} from './wallet-comparison.mjs';
 import * as purposeView from './wallet-purpose-view.mjs';
@@ -31,6 +32,7 @@ async function load(){
   const r=await fetch('/.netlify/functions/unit-data?unit='+encodeURIComponent(scope),{credentials:'same-origin',cache:'no-store'});if(!r.ok)throw Error(r.status===401?'Your session has expired. Return Home and sign in again.':r.status===403?'Your account does not have access to this wallet.':'This wallet is currently unavailable. Please try again later.');
   const value=await r.json();if(value.scope!==scope||!Array.isArray(value.rows))throw Error('This wallet could not be verified.');data=value;
   renderWalletCharts($('#wallet-charts'),data.rows,{controller:controlLabel});
+  renderWalletReconciliation($('#wallet-charts'),data.rows,{controller:controlLabel});
   const s=data.statement,c=data.controls;
   $('#wallet-cards').replaceChildren(
    card(controlLabel+'-controlled nonrecurring',c.department_nonrecurring,'('+money(c.faculty_nonrecurring)+' faculty controlled)',`GIB carryforward into FY${s.carry_year} + expendable balances at FY${s.balance_year} close`,true),
