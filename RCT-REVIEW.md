@@ -87,3 +87,8 @@ Saved reviewer keys keep identities stable independently of display names. Perso
 Invitation subjects include the selected Eastern-time deadline, for example RCT Round 2 — proposals ready for your review (due 5pm Monday Nov 23rd). The subject updates when the deadline changes and includes that deadline once. Each reviewer still receives one draft containing their full assigned-proposal list and My review link.
 
 Open in email app is the primary action beside each reviewer name. It fills the single To address, two separate CC recipients (displayed with a semicolon), subject and complete message in a mailto link; the user sends manually. Copy email, individual EML downloads and an optional ZIP remain available for mail-app limitations with long messages. No email is sent by the site and no Microsoft application registration is required.
+## Revised requested amounts
+
+RCT writers and managers can edit “Requested amount (current budget)” in the review form and use Save review. Clearing the field restores the original request. The immutable imported source amount remains visible; revisions are stored with authenticated editor and time in the review record.
+
+Current requests feed proposal lists, totals, workbook previews, commitment summaries and Excel downloads. Automatic Provost/EVPT thirds use the revised request when no proposed award is entered. An entered proposed award remains independent. Excel source notes retain the original request and revision history alongside existing notes. Older clients preserve revised amounts and history they do not send, and normal revision-conflict protection applies.

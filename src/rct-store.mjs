@@ -21,7 +21,9 @@ export function createRctStore({transport=createQbTransport(),table=config.revie
   // Only authenticated server saves may set attribution; client stamps are ignored.
   if(Array.isArray(review.assignments)){const visible=new Set(knownReviewerKeys);review={...review,assignments:[...new Set([...review.assignments,...row.review.assignments.filter(key=>!visible.has(key))])]};}
   if(Array.isArray(review.reviewers)){const incoming=review.reviewers.map((v,i)=>row.review.reviewers[i]?.reviewerKey&&!v.reviewerKey?{...v,reviewerKey:row.review.reviewers[i].reviewerKey}:v);review={...review,reviewers:[...incoming,...row.review.reviewers.slice(incoming.length)]};}
-  review=validateReview({...row.review,...review,vpr:row.review.vpr,notesHistory:row.review.notesHistory,commentStamps:row.review.commentStamps});
+  if(review.requested===row.source.requested)review={...review,requested:null};
+  review=validateReview({...row.review,...review,vpr:row.review.vpr,notesHistory:row.review.notesHistory,commentStamps:row.review.commentStamps,requestedHistory:row.review.requestedHistory});
+  if(review.requested!==row.review.requested)review.requestedHistory.push({amount:review.requested,by:actor,at});
   const archive=(text,stamp)=>review.notesHistory.push({text,by:stamp?.by||'Earlier entry',at:stamp?.at||at});
   if(review.notes!==row.review.notes){if(row.review.notes)archive(row.review.notes,row.review.commentStamps.notes);review.commentStamps.notes={by:actor,at};}
   for(let i=0;i<review.reviewers.length;i++){const previous=row.review.reviewers[i]||{name:'',grade:'',comments:''},next=review.reviewers[i];if(previous.comments!==next.comments||previous.name!==next.name&&Boolean(previous.comments||next.comments)){if(previous.comments)archive(previous.name+': '+previous.comments,row.review.commentStamps.reviewers[i]);review.commentStamps.reviewers[i]={by:actor,at};}}

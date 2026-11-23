@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {zipSync,unzipSync,strToU8,strFromU8} from 'fflate';
-import {emptyReview,validateReview,fundingSummary,commitmentView,decisionState,centralThirds,fundingReview,fundingTotal,sortProposals,departmentInfo} from './src/rct-model.mjs';
+import {emptyReview,validateReview,fundingSummary,commitmentView,decisionState,centralThirds,fundingReview,fundingTotal,requestedTotal,sortProposals,departmentInfo} from './src/rct-model.mjs';
 import {createRctHandler} from './src/rct-review.mjs';import {createRctStore} from './src/rct-store.mjs';
 import {exportReviews} from './src/rct-export.mjs';import {dropboxLink,loadDropboxTemplate} from './src/rct-dropbox.mjs';import {createHash} from 'node:crypto';
 import {createRctVersions,validatePdf,MAX_PDF_BYTES} from './src/rct-versions.mjs';
@@ -83,6 +83,23 @@ test('RCT QuickBase revisions reject stale clients and use atomic update_id',asy
  const other=transportFixture(),original=other.transport.native;other.transport.native=async(...args)=>{if(args[1]==='API_GetRecordInfo')other.change();return original(...args);};assert.equal((await createRctStore({transport:other.transport,table:'exampletable'}).save(row().id,emptyReview(),'v1','reviewer')).conflict,true);assert.equal(other.editCalls,0);
 });
 function template(){const cells=(r)=>'ABCDEFGHIJKLMNOPQRSTUV'.split('').map(c=>`<c r="${c}${r}" s="2"/>`).join('');const data=`<sheetData><row r="3">${cells(3)}</row><row r="4">${cells(4)}</row><row r="5"><c r="B5" s="2"><v>1</v></c><c r="E5" s="2"><v/></c><c r="H5" s="2"><v>1</v></c></row><row r="7">${cells(7)}</row><row r="8">${cells(8)}</row><row r="18">${cells(18)}</row></sheetData>`;return zipSync(Object.fromEntries(Object.entries({'xl/worksheets/sheet1.xml':`<worksheet><dimension ref="A2:V18"/>${data}</worksheet>`,'xl/tables/table1.xml':'<table ref="A7:V17"><calculatedColumnFormula>[2]EXTERNAL</calculatedColumnFormula></table>','xl/workbook.xml':'<workbook xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets><externalReferences><externalReference/></externalReferences><calcPr/></workbook>','xl/_rels/workbook.xml.rels':'<Relationships><Relationship Type="http://example/externalLink" Target="x"/></Relationships>','[Content_Types].xml':'<Types><Override PartName="/xl/externalLinks/externalLink1.xml" ContentType="x"/></Types>','xl/externalLinks/externalLink1.xml':'external','xl/calcChain.xml':'chain','xl/styles.xml':'unchanged style'}).map(([k,v])=>[k,strToU8(v)])));}
+
+test('revised requests drive current totals and central thirds while original requests and awards stay independent',()=>{
+ const revised={...emptyReview(),requested:60};assert.equal(requestedTotal(revised,source),60);assert.equal(fundingTotal(revised,source),60);assert.equal(fundingReview(revised,source).provost,20);assert.equal(source.requested,120);
+ assert.equal(fundingTotal({...revised,award:90},source),90);assert.equal(fundingReview({...revised,award:90},source).evpt,30);assert.equal(requestedTotal({...revised,requested:0},source),0);assert.equal(requestedTotal({...revised,requested:null},source),120);
+ assert.equal(commitmentView([{...row(),review:revised}],{scope:'all'}).total.amounts.requested.total,60);
+ for(const requested of [-1,NaN,Infinity,'60',0.001,100000001])assert.throws(()=>validateReview({...revised,requested}));
+});
+test('requested-amount saves preserve source and notes, stamp authenticated history, and protect older clients',async()=>{
+ const original={...emptyReview(),notes:'Keep shared note',requested:60,requestedHistory:[{amount:60,by:'earlier_editor',at:'2026-01-01T12:00:00Z'}]},f=transportFixture(original),store=createRctStore({transport:f.transport,table:'exampletable',now:()=>new Date('2026-01-02T12:00:00Z')});
+ const saved=await store.save(row().id,{...original,requested:75,requestedHistory:[{amount:1,by:'forged',at:'2026-01-01'}]},'v1','actual_editor');assert.equal(saved.row.source.requested,120);assert.equal(saved.row.review.notes,original.notes);assert.equal(saved.row.review.requested,75);assert.deepEqual(saved.row.review.requestedHistory,[...original.requestedHistory,{amount:75,by:'actual_editor',at:'2026-01-02T12:00:00.000Z'}]);
+ const {requested,requestedHistory,...older}=original;const kept=await store.save(row().id,older,'v1','actual_editor');assert.equal(kept.row.review.requested,60);assert.deepEqual(kept.row.review.requestedHistory,original.requestedHistory);
+ const restored=await store.save(row().id,{...original,requested:120},'v1','actual_editor');assert.equal(restored.row.review.requested,null);assert.equal(restored.row.review.requestedHistory.at(-1).amount,null);assert.equal(restored.row.source.requested,120);
+});
+test('Excel uses revised requests and retains original request provenance alongside existing source notes',()=>{
+ const review={...emptyReview(),requested:60,requestedHistory:[{amount:60,by:'example_editor',at:'2026-01-01T12:00:00Z'}]},zip=unzipSync(exportReviews(template(),[{...row(),review}])),sheet=strFromU8(zip['xl/worksheets/sheet1.xml']);
+ assert.match(sheet,/<c r="E8"[^>]*><v>60<\/v>/);assert.match(sheet,/<c r="B5"[^>]*><f>SUM\(E8:E8\)<\/f><v>60<\/v>/);assert.match(sheet,/Original requested amount/);assert.match(sheet,/example_editor/);assert.match(sheet,/Example source note/);assert.equal(source.requested,120);
+});
 test('RCT Excel maps all 11 proposals, preserves styles, removes links and recalculates local formulas',()=>{
  const rows=Array.from({length:11},(_,i)=>({...row(),id:'FY27-RCT2|fake-'+i,source:{...source,pi:'Example '+String(i).padStart(2,'0'),order:i},review:{...emptyReview(),award:i===0?0:100,school:i===0?null:40,provost:i===0?null:60,decision:'Support',notes:'=NOT_A_FORMULA & <text>'}}));
  const zip=unzipSync(exportReviews(template(),rows)),sheet=strFromU8(zip['xl/worksheets/sheet1.xml']);

@@ -1,5 +1,5 @@
 import {unzipSync,zipSync,strFromU8,strToU8} from 'fflate';
-import {stampedComment,commentStampText,FUNDING,fundingName,fundingSummary,fundingReview,sortProposals,validateReview} from './rct-model.mjs';
+import {requestedTotal,requestAmountNotes,stampedComment,commentStampText,FUNDING,fundingName,fundingSummary,fundingReview,sortProposals,validateReview} from './rct-model.mjs';
 const xml=v=>String(v).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const cols='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 // Retain the provided workbook's styles and table, replacing external links with
@@ -18,7 +18,7 @@ export function exportReviews(template,records){
  };
  const first=8,last=first+records.length-1,total=last+1;
  const sum=k=>Math.round(records.reduce((n,r)=>n+(r.review[k]??0),0)*100)/100;
- const requested=records.reduce((n,r)=>n+r.source.requested,0),awards=records.some(r=>r.review.award!==null)?sum('award'):null;
+ const requested=records.reduce((n,r)=>n+requestedTotal(r.review,r.source),0),awards=records.some(r=>r.review.award!==null)?sum('award'):null;
  let rows=originalRows.filter(r=>Number(r[1])<8).map(r=>{
   if(r[1]==='3')return `<row r="3">${cell('A',3,'Enter reviews in SoE HQ RCT review, or edit this standalone downloaded workbook.')}</row>`;
   if(r[1]==='4')return `<row r="4">${cell('A',4,'Download contains saved reviews. Offline Excel edits are not uploaded to the site.')}</row>`;
@@ -29,7 +29,7 @@ export function exportReviews(template,records){
  const allValues=[];
  for(const [i,record]of records.entries()){
   const r=first+i,s=record.source,v=record.review,f=fundingSummary(v,s);
-  const values={A:s.area,B:s.pi,C:s.department,D:s.duration,E:s.requested,F:s.budgetTotal,G:v.award,...Object.fromEntries(FUNDING.map(([key,,col])=>[col,v[key]])),M:v.award===null?'Requested total':'Proposed award',N:f.local,O:Math.round(((v.provost??0)+(v.evpt??0))*100)/100,P:f.assigned,Q:f.unallocated,R:v.decision,S:stampedComment(v.notes,v.commentStamps.notes),T:s.prior,U:s.budgetDifference,V:s.sourceNotes,X:fundingName(v,'department'),Y:fundingName(v,'pi'),Z:fundingName(v,'other')};allValues.push(values);
+  const values={A:s.area,B:s.pi,C:s.department,D:s.duration,E:requestedTotal(v,s),F:s.budgetTotal,G:v.award,...Object.fromEntries(FUNDING.map(([key,,col])=>[col,v[key]])),M:v.award===null?'Requested total':'Proposed award',N:f.local,O:Math.round(((v.provost??0)+(v.evpt??0))*100)/100,P:f.assigned,Q:f.unallocated,R:v.decision,S:stampedComment(v.notes,v.commentStamps.notes),T:s.prior,U:s.budgetDifference,V:[s.sourceNotes,requestAmountNotes(v,s)].filter(Boolean).join('\n\n'),X:fundingName(v,'department'),Y:fundingName(v,'pi'),Z:fundingName(v,'other')};allValues.push(values);
   const totalFormula=`IF(G${r}="",E${r},G${r})`;
   const formulas={H:`ROUND(${totalFormula}/3,2)`,I:`ROUND(${totalFormula}/3,2)`,N:`IF(COUNT(J${r}:L${r},W${r})=0,"",SUM(J${r}:L${r},W${r}))`,O:`SUM(H${r}:I${r})`,P:`SUM(H${r}:L${r},W${r})`,Q:`${totalFormula}-SUM(H${r}:L${r},W${r})`};
   rows+=`<row r="${r}" ht="100" customHeight="1">${cols.map(c=>cell(c,r,values[c],formulas[c]??null)).join('')}</row>`;
