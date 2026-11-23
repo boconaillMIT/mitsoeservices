@@ -22,7 +22,7 @@ function render(){
  const cents=numeric.reduce((n,r)=>n+Math.round(Number(r.amount)*100),0);
  $('#wallet-total').textContent=money(rows.length&&!numeric.length?null:cents/100);
  const excluded=data.rows.filter(r=>r.type===$('#resource-type').value&&r.year===Number($('#resource-year').value)&&closedAccount(r)).length;
- $('#wallet-count').textContent=`${rows.length.toLocaleString()} matching records${excluded?` · ${excluded.toLocaleString()} closed-account records excluded`:``}${numeric.length<rows.length?' · '+(rows.length-numeric.length)+' unavailable amounts excluded from total':''}`;
+ $('#wallet-count').textContent=`${rows.length.toLocaleString()} matching records${excluded?` · ${excluded.toLocaleString()} closed-account records excluded`:``}`;
  $('#wallet-page').textContent=`Page ${page} of ${pages}`;$('#wallet-prev').disabled=page===1;$('#wallet-next').disabled=page===pages;
 }
 async function load(){

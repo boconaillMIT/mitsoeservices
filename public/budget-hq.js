@@ -1,3 +1,4 @@
+import {startBudgetWalletExtract} from './budget-wallet-extract.mjs';
 import {submissionHtml,submissionLineHtml} from '/budget-submission.mjs';
 import {workbookSourceHtml,sumRequestFunding} from '/budget-model.mjs';
 import {renderBudgetHistory,budgetComparison,bindBudgetPerspective} from '/budget-history.mjs';
@@ -59,7 +60,7 @@ function renderUnit(){
   +(r?tile('GIB used',pct(ry?.gib_use_rate),ry?fy(ry.year):''):'')
   +(r?tile('Open commitments',short(r.unit.open_commitments),(r.unit.open_commitment_count??0)+' commitments'):'')}</div>
  ${data.storage_ready?'':'<p class="bv-status error bh-noprint">HQ decisions, the briefing and the documents link are read-only until the QuickBase tables are connected.</p>'}
- <section class="bv-panel bh-brief"><div class="bh-head"><h2>Dean’s briefing</h2><span class="bv-status bh-noprint">${data.can_edit?'Use Edit to update a section; each section saves on its own.':'Prepared by SoE HQ.'}</span></div>${recentOutcomes()}<div id="bh-notes"></div></section>
+ <section class="bv-panel bh-brief"><div class="bh-head"><h2>Dean’s briefing</h2><span class="bv-status bh-noprint">${data.can_edit?'Use Edit to update a section; each section saves on its own.':'Prepared by SoE HQ.'}</span></div>${data.wallet_extract_allowed?`<section class="bh-wallet-extract" aria-label="Published wallet extract"><div class="bh-head"><h3>Published wallet extract</h3><a class="bh-noprint" href="${unitKey==='school'?'/soe-wallet':(u.academic?'/units/':'/other-units/')+encodeURIComponent(unitKey)+'/wallet'}">Open full wallet →</a></div><p class="bv-status" role="status" data-wallet-status>Loading the published wallet extract…</p><div class="wallet-history-grid bh-wallet-charts" data-wallet-charts></div><button type="button" class="bh-noprint" data-wallet-retry hidden>Retry wallet extract</button></section>`:''}${recentOutcomes()}<div id="bh-notes"></div></section>
  <section class="bv-panel"><h2>${fy(data.year)} requests and HQ decisions</h2>${data.can_edit?'<p class="bv-status bh-noprint">Set each line to decline or support. Support level is the share of the request supported. SoE share is the part the School funds, and the rest goes to the Provost as cost share. Save each line.</p>':'<p class="bv-status">Read-only.</p>'}
   <div class="bv-scroll" id="bh-lines"></div></section>
  <div class="${data.restricted?'':'bh-two'}">
@@ -69,8 +70,8 @@ function renderUnit(){
  ${data.restricted?'':'<section class="bv-panel"><h2>Wallet snapshot</h2><div class="bv-scroll" id="bh-wallet"></div></section>'}
  <section class="bv-panel bh-noprint"><div class="bh-head"><h2>Documents</h2><a class="desktop" href="${API}?cycle=${cycle}&amp;unit=${encodeURIComponent(unitKey)}&amp;format=csv">Download this department’s requests (CSV)</a></div><div id="bh-files"></div></section>
  <section class="bv-panel bh-noprint"><h2>Change history</h2><div id="bh-audit"></div></section>`;
- if(data.submission)$('#bh-files').closest('section').insertAdjacentHTML('beforebegin','<section class="bv-panel">'+submissionHtml(data.submission)+'</section>');notes();files();lines();history();if(!data.restricted){position();wallet();}audit();
- $('#bh-print').addEventListener('click',()=>window.print());
+ if(data.submission)$('#bh-files').closest('section').insertAdjacentHTML('beforebegin','<section class="bv-panel">'+submissionHtml(data.submission)+'</section>');const walletReady=startBudgetWalletExtract(root.querySelector('.bh-wallet-extract'),unitKey,{controller:unitKey==='school'?'School':'Department'});notes();files();lines();history();if(!data.restricted){position();wallet();}audit();
+ $('#bh-print').addEventListener('click',async()=>{await walletReady;window.print();});
 }
 function chip(t){const s=!t.lines?['none','No requests']:t.pending===t.lines?['open','Not started']:t.pending?['review','In review · '+t.pending+' pending']:['done','All lines decided'];return `<span class="bh-chip ${s[0]}">${s[1]}</span>`;}
 

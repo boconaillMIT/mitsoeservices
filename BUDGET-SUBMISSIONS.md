@@ -11,3 +11,7 @@ Full unit-finance readers can retrieve their own revision through `unit-data?uni
 The wallet's optional revision lookup runs after its main loader. A missing revision or unavailable lookup cannot stop the wallet. Server-side lookup caching is limited to one minute. All endpoint access checks precede retrieval; source metadata is validated and escaped before display.
 
 Data updates must back up the current records, edit only the intended request/source fields using QuickBase `update_id`, preserve the Dean's notes and HQ decisions, and verify unchanged amounts and approval fields. Briefing additions use existing optimistic-concurrency saves and record their date/time and Kerberos actor.
+
+## Dean briefing wallet extract
+
+Every full-finance budget unit briefing starts with the published GIB carryforward and expendable-balance history charts, before request comparisons and notes. The extract reads the protected unit wallet directly, independently of reserve calculations and submission forecasts. Failures leave a visible status and retry action. Department-only budget grants do not gain wallet access. The extract is included when printing. Browser release checks cover MechE first, all real academic units, placement, retry, re-rendering and finance-access restrictions.

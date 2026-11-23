@@ -12,10 +12,10 @@ const short=v=>v===null?'Unavailable':new Intl.NumberFormat('en-US',{style:'curr
 const exact=v=>v===null?'Unavailable':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(v);
 function node(tag,value,cls){const el=document.createElement(tag);if(value!==undefined)el.textContent=value;if(cls)el.className=cls;return el;}
 function svgNode(tag,attrs={},value){const el=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [key,val]of Object.entries(attrs))el.setAttribute(key,String(val));if(value!==undefined)el.textContent=value;return el;}
-export function renderWalletCharts(container,rows,{controller='Department'}={}){
+export function renderWalletCharts(container,rows,{controller='Department',types=['GIB Carryforward','Expendable Fund Balance','GIB Base','Pool A Payout']}={}){
  const displayControls=controls.map(([key,label,color])=>[key,key==='department'?controller+' controlled':label,color]);
  container.replaceChildren();
- for(const type of ['GIB Carryforward','Expendable Fund Balance','GIB Base','Pool A Payout']){
+ for(const type of types){
   const points=historyPoints(rows,type),card=node('section',undefined,'card wallet-history');card.append(node('h2',type+' history'));
   if(!points.length){card.append(node('p','No history supplied for this resource.'));container.append(card);continue;}
   const legend=node('div',undefined,'history-legend');for(const [,label,color]of displayControls){const entry=node('span'),swatch=node('i');swatch.style.backgroundColor=color;entry.append(swatch,document.createTextNode(label));legend.append(entry);}card.append(legend);
@@ -30,10 +30,10 @@ export function renderWalletCharts(container,rows,{controller='Department'}={}){
    for(const [key,label,color]of displayControls){const value=p[key];if(value===null||value===0)continue;const h=Math.abs(value)*scale,y=value>0?above-h:below;const rect=svgNode('rect',{x:x-barWidth/2,y,width:barWidth,height:h,fill:color,stroke:p.projection?'#4b6456':'none','stroke-dasharray':p.projection?'4 3':'none'});rect.append(svgNode('title',{},`FY${p.year} · ${label}: ${exact(value)}${p.projection?' · projected':''}`));svg.append(rect);if(value>0)above=y;else below+=h;}
    // Keep the year and source notes below all negative segments.
    const labelY=baseline+maxNegative*scale+22;
-   for(const [offset,value,cls]of [[0,'FY'+p.year,'history-year'],[19,p.projection?'Projected':p.periods.some(v=>v.endsWith('02'))?'Period 02 / source YTD':p.periods.length?'Year-end':'Carry-in / base','history-note'],[38,short(p.faculty)+' faculty','history-note'],[55,p.blanks?p.blanks+' source blanks':'','history-note']])svg.append(svgNode('text',{x,y:labelY+offset,'text-anchor':'middle',class:cls},value));
+   for(const [offset,value,cls]of [[0,'FY'+p.year,'history-year'],[19,p.projection?'Projected':p.periods.some(v=>v.endsWith('02'))?'Period 02 / source YTD':p.periods.length?'Year-end':'Carry-in / base','history-note'],[38,short(p.faculty)+' faculty','history-note']])svg.append(svgNode('text',{x,y:labelY+offset,'text-anchor':'middle',class:cls},value));
   });
   // Expand for negative histories without clipping the labels.
   svg.setAttribute('viewBox',`0 0 ${width} ${Math.max(height,baseline+maxNegative*scale+100)}`);
-  const scroll=node('div',undefined,'history-scroll');scroll.append(svg);card.append(scroll,node('p','All account controls are shown. Source blanks are excluded from totals; years with only blanks remain unavailable. Dashed bars indicate projections.','small'));container.append(card);
+  const scroll=node('div',undefined,'history-scroll');scroll.append(svg);card.append(scroll,node('p','All account controls are shown. Dashed bars indicate projections.','small'));container.append(card);
  }
 }

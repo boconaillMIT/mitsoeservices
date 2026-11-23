@@ -84,6 +84,8 @@ and adjust `changed` (public files that change) and `ADDED` (new function names)
    data endpoints and key pages;
 5. restores the previous deploy automatically if any check fails, and writes a receipt.
 
+Budget briefing release invariant: for every user with wallet access, keep the published GIB carryforward and expendable-balance history charts at the top of the Dean's briefing, before request comparisons and notes. Keep the extract when printing, switching history views, and saving decisions. Budget-only department grants do not gain wallet access. Any release touching budget or wallet UI must browser-check this placement using the actual staged/public assets and fictional data, including MechE first, other wallet-backed units, loading failure/retry, and restricted permissions. Do not remove the extract as part of a layout or memo update.
+
 Never promote a draft via the restore API: drafts lack production environment variables, which
 caused a 503 once. Long uploads need generous timeouts (scripts allow 20 minutes, with retries).
 

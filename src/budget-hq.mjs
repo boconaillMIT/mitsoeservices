@@ -159,7 +159,7 @@ export function createBudgetHqDataHandler({authorize=access.authorize,asks=loadA
    return {statusCode:200,headers:{...base,'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="${c.cycle.toUpperCase()}-${key}-budget.csv"`},body:csv};
   }
   return reply(200,{cycle:c.cycle,year:c.year,restricted:Boolean(auth.budgetRestricted),unit:info,lines,totals:rollUp(lines),history,recent_budget_outcomes:recentBudgetOutcomes(all,key,c.year),reserves:snapshot,storage_ready:ready,can_edit:canEdit,
-   submission:latestSubmission(list,key,c.year),notes:{sections:saved.sections},note_sections:NOTE_SECTIONS,folder:saved.link,log:saved.log,generated_at:now().toISOString()});
+   wallet_extract_allowed:Boolean(!auth.budgetRestricted&&auth.features?.wallets!==false&&info.has_wallet),submission:latestSubmission(list,key,c.year),notes:{sections:saved.sections},note_sections:NOTE_SECTIONS,folder:saved.link,log:saved.log,generated_at:now().toISOString()});
  }
  const decided=ready?await store.cycleDecisions(c.cycle):{};
  const keys=[...new Set([...Object.keys(units.UNITS).filter(k=>k!=='soe-fake'),...byUnit.keys(),...(c.cycle==='fy28'?Object.keys(BRIEFING_UNITS):[])])];
