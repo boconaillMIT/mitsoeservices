@@ -1,3 +1,4 @@
+import {consolidateHistoryRows} from './budget-history-groups.mjs';
 // SoE HQ budget cycle: per-unit request lines (QuickBase budget table), draft decisions
 // (decline / support at a % with an SoE vs Provost split), roll-ups and CSV export.
 // Decisions, the Dean's briefing, documents-folder links and the change log are stored in
@@ -50,15 +51,15 @@ export function recentBudgetOutcomes(all,key,year){
  const sum=(rows,field)=>{const values=rows.map(r=>r[field]).filter(Number.isFinite);return values.length?r0(values.reduce((a,b)=>a+b,0)):null;};
  const funding=r=>{const values=['school','provost','scc','unresolved'].map(k=>r[k]).filter(Number.isFinite);return values.length?values.reduce((a,b)=>a+b,0):null;};
  return [year-2,year-1].map(year=>{
-  const rows=all.filter(r=>r.unit_key===key&&r.year===year&&!isFacultyHireSlot(r)),requested=sum(rows,'requested'),school=sum(rows,'school');
+  const rows=consolidateHistoryRows(all.filter(r=>r.unit_key===key&&r.year===year&&!isFacultyHireSlot(r)),key,year),requested=sum(rows,'requested'),school=sum(rows,'school');
   const known=rows.map(funding).filter(Number.isFinite),approved=known.length?r0(known.reduce((a,b)=>a+b,0)):null;
   const finalDeclines=rows.filter(r=>!r.declinedIsInitial),declined=sum(finalDeclines,'declined');
-  const complete=rows.length>0&&rows.every(r=>Number.isFinite(r.requested)&&(funding(r)!==null||(!r.declinedIsInitial&&Number.isFinite(r.declined)))&&((funding(r)??0)+(r.declinedIsInitial?0:r.declined??0)>=r.requested));
+  const complete=rows.length>0&&rows.every(r=>Number.isFinite(r.requested)&&(funding(r)!==null||(!r.declinedIsInitial&&Number.isFinite(r.declined)))&&(r.history_group||((funding(r)??0)+(r.declinedIsInitial?0:r.declined??0)>=r.requested)));
   const outcome=!rows.length?'No record':!complete?'Outcome incomplete':approved>=requested?'Fully funded':approved>0?'Partially funded':'Not funded';
   const requests=rows.map(r=>{
    const awarded=funding(r),rejected=r.declinedIsInitial?null:r.declined??null;
    const status=awarded>0?(Number.isFinite(r.requested)&&awarded>=r.requested?'Approved':'Partially approved'):rejected>0&&Number.isFinite(r.requested)&&rejected>=r.requested?'Rejected':r.decision==='Removed'?'Removed':r.decision==='Approved'?'Approved (initial)':rejected>0?'Partially rejected':'Not recorded';
-   return {description:String(r.revised||r.original||r.request||'Request').replace(/\s+/g,' ').trim(),requested:r.requested??null,approved:awarded,declined:rejected,initial_declined:r.declinedIsInitial?r.declined??null:null,school:r.school??null,provost:r.provost??null,scc:r.scc??null,unresolved:r.unresolved??null,status,recorded_status:r.decision||'',record_id:r.record_id||null};
+   return {description:String(r.revised||r.original||r.request||'Request').replace(/\s+/g,' ').trim(),requested:r.requested??null,approved:awarded,declined:rejected,initial_declined:r.declinedIsInitial?r.declined??null:null,school:r.school??null,provost:r.provost??null,scc:r.scc??null,unresolved:r.unresolved??null,status,recorded_status:r.decision||'',record_id:r.record_id||null,...(r.history_group?{history_group:r.history_group}:{})};
   });
   return {year,lines:rows.length,requested,school,provost:sum(rows,'provost'),scc:sum(rows,'scc'),unresolved:sum(rows,'unresolved'),initial_declined:sum(rows.filter(r=>r.declinedIsInitial),'declined'),approved,declined,outcome,complete,requests,unpriced:rows.filter(r=>!Number.isFinite(r.requested)).length};
  });

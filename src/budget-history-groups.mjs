@@ -1,0 +1,10 @@
+// Display-only reconciliation of linked historical request records. Canonical awards remain unchanged.
+export function consolidateHistoryRows(rows,unit,year){
+ const valid=g=>g?.schema===1&&g.unit===unit&&g.year===year&&/^[a-z0-9-]{1,80}$/.test(g.key||'')&&Array.isArray(g.members)&&g.members.length>=2&&g.members.length<=10&&new Set(g.members).size===g.members.length&&g.members.every(id=>/^\d{1,12}$/.test(id))&&Number.isInteger(g.requested_count)&&g.requested_count>0&&Number.isInteger(g.funded_count)&&g.funded_count>=0&&g.funded_count<=g.requested_count&&typeof g.note==='string'&&g.note.length<=1000&&g.funder_counts&&Object.entries(g.funder_counts).every(([k,v])=>['school','provost','scc','unresolved'].includes(k)&&Number.isInteger(v)&&v>=0);
+ const result=[],seen=new Set(),sum=(items,k)=>{const xs=items.map(r=>r[k]).filter(Number.isFinite);return xs.length?Math.round(xs.reduce((n,v)=>n+Math.round(v*100),0))/100:null;};
+ for(const row of rows){if(seen.has(String(row.record_id)))continue;const g=row.source?.history_group;if(!valid(g)){result.push(row);continue;}const members=g.members.map(id=>rows.find(r=>String(r.record_id)===id));
+ if(members.some(r=>!r||r.unit_key!==unit||r.year!==year||JSON.stringify(r.source?.history_group)!==JSON.stringify(g))){result.push(row);continue;}
+ const requested=sum(members,'requested'),price=requested/g.requested_count;if(!Number.isFinite(requested)||requested<=0||Object.values(g.funder_counts).reduce((n,v)=>n+v,0)!==g.funded_count||['school','provost','scc','unresolved'].some(k=>Math.abs((sum(members,k)||0)-(g.funder_counts[k]||0)*price)>.011)){result.push(row);continue;}
+ const combined={...members[0],record_id:'group-'+g.key,original:g.requested_count+' TAs requested; '+g.funded_count+' funded',revised:'',request:g.requested_count+' TAs requested; '+g.funded_count+' funded',declined:sum(members.filter(r=>!r.declinedIsInitial),'declined'),declinedIsInitial:false,decision:'Approved',history_group:g};for(const key of ['requested','school','provost','scc','unresolved'])combined[key]=sum(members,key);result.push(combined);for(const r of members)seen.add(String(r.record_id));
+ }return result;
+}
