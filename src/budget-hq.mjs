@@ -10,7 +10,7 @@ import policy from './policy.cjs';
 import units from './units.cjs';
 import nameMapping from './unit-name-mapping.cjs';
 import {loadBudgetRecords,safeValue} from './budget-explorer.mjs';
-import {mapRecord,numberOrNull,sumRequestFunding} from '../public/budget-model.mjs';
+import {mapRecord,numberOrNull,sumRequestFunding,isFacultyHireSlot} from '../public/budget-model.mjs';
 import {loadReserves} from './reserves.mjs';
 import {createBudgetHqStore,SECTION_LABEL} from './budget-hq-qb.mjs';
 import {authorizeBudget} from './budget-access.mjs';
@@ -32,7 +32,7 @@ export async function loadAskRows(load=loadBudgetRecords){
  const {selected,raw}=await load();
  return raw.map(r=>{const row=Object.fromEntries(selected.map(f=>[f.label,f.label==='Workbook Source JSON'?String(r[String(f.id)]?.value||'').slice(0,50000):safeValue(r[String(f.id)]?.value)]));const m=mapRecord(row);
   return {...m,record_id:String(r['3']?.value??''),revised:String(row['Revised Request Description']??'').trim(),original:String(row['Original Request Description']??'').trim(),
-   recurring:numberOrNull(row['Recurring (base) - DLC']),onetime:numberOrNull(row['Non-recurring (non-base) - DLC']),unit_key:unitKeyFor(m.unit)};});
+   recurring:numberOrNull(row['Recurring (base) - DLC']),onetime:numberOrNull(row['Non-recurring (non-base) - DLC']),unit_key:unitKeyFor(m.unit)};}).filter(r=>!r.facultyHireSlot);
 }
 
 export function validateDecision(input){
@@ -50,7 +50,7 @@ export function recentBudgetOutcomes(all,key,year){
  const sum=(rows,field)=>{const values=rows.map(r=>r[field]).filter(Number.isFinite);return values.length?r0(values.reduce((a,b)=>a+b,0)):null;};
  const funding=r=>{const values=['school','provost','scc','unresolved'].map(k=>r[k]).filter(Number.isFinite);return values.length?values.reduce((a,b)=>a+b,0):null;};
  return [year-2,year-1].map(year=>{
-  const rows=all.filter(r=>r.unit_key===key&&r.year===year),requested=sum(rows,'requested'),school=sum(rows,'school');
+  const rows=all.filter(r=>r.unit_key===key&&r.year===year&&!isFacultyHireSlot(r)),requested=sum(rows,'requested'),school=sum(rows,'school');
   const known=rows.map(funding).filter(Number.isFinite),approved=known.length?r0(known.reduce((a,b)=>a+b,0)):null;
   const finalDeclines=rows.filter(r=>!r.declinedIsInitial),declined=sum(finalDeclines,'declined');
   const complete=rows.length>0&&rows.every(r=>Number.isFinite(r.requested)&&(funding(r)!==null||(!r.declinedIsInitial&&Number.isFinite(r.declined)))&&((funding(r)??0)+(r.declinedIsInitial?0:r.declined??0)>=r.requested));
@@ -110,7 +110,7 @@ export function createBudgetHqDataHandler({authorize=access.authorize,asks=loadA
  const auth=await authorizeBudget(event,{authorize,writing,unit:writing?body.unit:q.unit});if(auth.statusCode)return auth;
  const ready=store.configured(),canEdit=!auth.budgetRestricted&&ready&&(policy.CAPABILITIES[auth.role]||0)>=policy.CAPABILITIES.write;
  if(auth.budgetRestricted&&!q.unit){if(q.format)return reply(403,{error:'Choose an authorized department before downloading.'});return reply(200,{cycle:c.cycle,year:c.year,restricted:true,can_edit:false,units:auth.budgetUnits.map(key=>({...unitInfo(key,[budgetScopes.BUDGET_UNITS[key]]),has_wallet:false}))});}
- let all,rows;try{all=await asks();rows=all.filter(a=>a.year===c.year);}catch(e){console.error('Budget HQ asks:',e.message);return reply(503,{error:'Budget requests are temporarily unavailable from QuickBase.'});}
+ let all,rows;try{all=(await asks()).filter(r=>!isFacultyHireSlot(r));rows=all.filter(a=>a.year===c.year);}catch(e){console.error('Budget HQ asks:',e.message);return reply(503,{error:'Budget requests are temporarily unavailable from QuickBase.'});}
  const byUnit=new Map();for(const a of rows){if(!byUnit.has(a.unit_key))byUnit.set(a.unit_key,[]);byUnit.get(a.unit_key).push(a);}
  const knownUnit=k=>typeof k==='string'&&/^[a-z0-9-]{1,60}$/.test(k)&&(byUnit.has(k)||(c.cycle==='fy28'&&Object.hasOwn(BRIEFING_UNITS,k))||(Object.hasOwn(units.ALL_UNITS,k)&&k!=='soe-fake'));
  const conflict=what=>reply(409,{error:`Someone else changed this ${what}. Reload to see the latest before saving.`});

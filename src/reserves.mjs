@@ -80,7 +80,7 @@ export async function loadReserves({group='academic',read=readUnit,query=qbReque
   if(incomplete)notes.push(incomplete+' open commitments have missing amounts or payments and are not subtracted.');
  }catch(e){console.error('Reserves: commitments unavailable:',e.message);notes.push('Commitments could not be read from QuickBase; reserves are shown before commitments.');}
  let asks=null,askYear=null;
- try{const {selected,raw}=await budget();const rows=raw.map(r=>mapRecord(Object.fromEntries(selected.map(f=>[f.label,safeValue(r[String(f.id)]?.value)]))));
+ try{const {selected,raw}=await budget();const rows=raw.map(r=>mapRecord(Object.fromEntries(selected.map(f=>[f.label,safeValue(r[String(f.id)]?.value)])))).filter(r=>!r.facultyHireSlot);
   askYear=Math.max(...rows.map(r=>r.year).filter(Number.isInteger));asks={};const unmatched=new Set();
   for(const r of rows.filter(r=>r.year===askYear)){const scope=nameMapping.scopeFor(r.unit),parent=scope?units.permissionScope(scope):null;if(!parent){if(r.requested)unmatched.add(r.unit||'(blank)');continue;}asks[parent]=(asks[parent]||0)+(r.requested||0);}
   if(unmatched.size)notes.push('FY'+String(askYear).slice(-2)+' requests not matched to a unit: '+[...unmatched].join(', ')+'.');

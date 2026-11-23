@@ -18,3 +18,5 @@ Every full-finance budget unit briefing starts with the published GIB carryforwa
 
 
 Full submission files are stored in the dedicated HQ Budget Submission Files QuickBase table configured by src/budget-document-tables.json. The protected budget-documents function lists and proxies these files with the same authorizeBudget check as the unit briefing, including read-only budget:<unit> grants. Each cycle/unit/SHA256 key is unique; files are immutable and verified on download. The top briefing link opens the latest primary submission; supporting files and originals remain alongside it. PDF copies preserve the original source documents. No attachment bytes or private local paths belong in Git or public assets.
+
+Faculty hiring slots (Faculty TBA category or descriptions beginning TBA/numbered TBAs) are outside the budget-ask cycle. The site excludes them from HQ requests, historical comparisons, totals, counts, CSV, Explorer and reserve request comparisons, while retaining the original QuickBase records. Teaching-assistant requests and other costs with unspecified details remain budget asks.

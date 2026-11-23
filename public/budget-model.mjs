@@ -4,13 +4,19 @@ export const academicUnits=new Set(['aero-astro','be','cheme','cee','dmse','eecs
 export const otherUnits=new Set(['cce','ctl/scm','gel','lgo','mites','neet','ppsm','scm','sdm','soe','upop','ihq']);
 export function numberOrNull(value){if(value===null||value===undefined||value==='')return null;if(typeof value==='number')return Number.isFinite(value)?value:null;const text=String(value).trim();if(!text)return null;const neg=/^\(.*\)$/.test(text),n=Number(text.replace(/[$,()\s]/g,''));return Number.isFinite(n)?(neg?-n:n):null;}
 function sumPresent(...values){const present=values.filter(v=>v!==null);return present.length?present.reduce((a,b)=>a+b,0):null;}
+export function isFacultyHireSlot(row){
+ const category=String(row.category??row['Request Nimbus category']??'').trim().replace(/[-_]+/g,' ');
+ if(/^faculty\s+tbas?$/i.test(category))return true;
+ const description=[row.revised,row['Revised Request Description'],row.description,row.original,row.request,row['Original Request Description']].find(v=>typeof v==='string'&&v.trim())||'';
+ return /^(?:\d+(?:\.\d+)?\s+)?tbas?\b/i.test(description.trim());
+}
 export function mapRecord(row){
  const get=key=>row[fieldNames[key]],base=numberOrNull(get('requestBase')),non=numberOrNull(get('requestNon')),request=numberOrNull(get('request'));
  const finalDeclined=numberOrNull(get('declinedFinal')),initialDeclined=numberOrNull(get('declined'));
  const rawYear=String(get('year')??'').trim(),match=/^(?:FY\s*)?(\d{2}|\d{4})$/i.exec(rawYear),year=match?(match[1].length===2?2000+Number(match[1]):Number(match[1])):null;
  const provostBase=numberOrNull(get('provostBase')),provostNon=numberOrNull(get('provostNon'));
  const requested=sumPresent(base,non)??request;
- return {year,unit:String(get('unit')??'').trim(),request:String(get('original')||get('revised')||'').trim(),category:String(get('category')??'').trim(),requested,requestFunding:requestFunding(row,requested),provost:sumPresent(provostBase,provostNon),provostBase,provostNon,school:numberOrNull(get('school')),scc:numberOrNull(get('scc')),declined:finalDeclined??initialDeclined,declinedIsInitial:finalDeclined===null&&initialDeclined!==null,unresolved:numberOrNull(get('unresolved')),decision:String(get('decision')??'').trim(),source:parseWorkbookSource(row['Workbook Source JSON'])};
+ return {facultyHireSlot:isFacultyHireSlot(row),year,unit:String(get('unit')??'').trim(),request:String(get('original')||get('revised')||'').trim(),category:String(get('category')??'').trim(),requested,requestFunding:requestFunding(row,requested),provost:sumPresent(provostBase,provostNon),provostBase,provostNon,school:numberOrNull(get('school')),scc:numberOrNull(get('scc')),declined:finalDeclined??initialDeclined,declinedIsInitial:finalDeclined===null&&initialDeclined!==null,unresolved:numberOrNull(get('unresolved')),decision:String(get('decision')??'').trim(),source:parseWorkbookSource(row['Workbook Source JSON'])};
 }
 // Request-side funding offices are independent of approved funding and HQ decisions.
 export function requestFunding(row,total){

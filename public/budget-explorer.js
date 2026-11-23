@@ -57,7 +57,7 @@ if(root){
   try{
    const response=await fetch('/.netlify/functions/budget-explorer',{credentials:'same-origin'});if(!response.ok)throw Error();const payload=await response.json();
    if(!Array.isArray(payload.rows)||!Array.isArray(payload.fields))throw Error();
-   records=payload.rows.map(mapRecord).filter(row=>row.year&&row.unit);
+   records=payload.rows.map(mapRecord).filter(row=>row.year&&row.unit&&!row.facultyHireSlot);
    const units=[...new Set(records.map(row=>row.unit))].sort((a,b)=>a.localeCompare(b)),years=[...new Set(records.map(row=>row.year))].sort((a,b)=>a-b),categories=[...new Set(records.map(row=>row.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
    if(!units.length||!years.length)throw Error();
    opts($('#history-unit'),units,units[0]);opts($('#history-from'),years,years[0]);opts($('#history-through'),years,years.at(-1));opts($('#compare-year'),[...years].reverse(),years.at(-1));opts($('#compare-category'),['All categories',...categories],'All categories');

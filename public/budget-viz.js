@@ -132,7 +132,7 @@ root.addEventListener('change',e=>{
 root.addEventListener('click',e=>{const b=e.target.closest('[data-unit]');if(b&&b.tagName==='BUTTON'){state.focus=b.dataset.unit;render();$('#bv-kpis').scrollIntoView({behavior:'smooth',block:'start'});}});
 
 fetch('/.netlify/functions/budget-explorer',{credentials:'same-origin'}).then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Budget data is temporarily unavailable.');return d;}).then(data=>{
- records=data.rows.map(mapRecord).filter(r=>r.year&&r.unit);
+ records=data.rows.map(mapRecord).filter(r=>r.year&&r.unit&&!r.facultyHireSlot);
  units=[...new Set(records.map(r=>r.unit))].sort((a,b)=>a.localeCompare(b));
  years=[...new Set(records.map(r=>r.year))].sort((a,b)=>a-b);
  if(!records.length)throw Error('No budget records were returned.');

@@ -11,7 +11,7 @@ test('never collapses multiple same-year asks or confuses distinct courses and s
  const groups=alignBudgetRequests(years,'meche');assert.equal(groups.find(g=>g.key==='teaching-assistants').cells[2026].length,2);assert.equal(groups.filter(g=>g.label.startsWith('M&S')).length,2);assert.deepEqual(Object.values(groups.find(g=>g.key==='finance-research-admin').cells).map(a=>a.length),[1,1,0]);assert.equal(groups.reduce((a,g)=>a+Object.values(g.cells).reduce((a,r)=>a+r.length,0),0),9);
 });
 test('keeps unknown entries separate, preserves missing years, escapes labels and shows comparable amount changes',()=>{
- const years=[{year:2026,requests:[row('TBA'),row('Equipment <test>',100)]},{year:2027,requests:[row('TBA'),row('Equipment <test>',125)]},{year:2028,current:true,requests:[]}];
+ const years=[{year:2026,requests:[row(''),row('Equipment <test>',100)]},{year:2027,requests:[row(''),row('Equipment <test>',125)]},{year:2028,current:true,requests:[]}];
  const groups=alignBudgetRequests(years);assert.equal(groups.filter(g=>g.key.startsWith('unknown|')).length,2);const html=renderBudgetHistory(years);assert.match(html,/Equipment &lt;test&gt;/);assert.doesNotMatch(html,/<test>/);assert.match(html,/Ask \+\$25 vs FY26/);assert.match(html,/No matching request recorded/);
 });
 
