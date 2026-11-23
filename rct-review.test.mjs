@@ -100,6 +100,21 @@ test('Excel uses revised requests and retains original request provenance alongs
  const review={...emptyReview(),requested:60,requestedHistory:[{amount:60,by:'example_editor',at:'2026-01-01T12:00:00Z'}]},zip=unzipSync(exportReviews(template(),[{...row(),review}])),sheet=strFromU8(zip['xl/worksheets/sheet1.xml']);
  assert.match(sheet,/<c r="E8"[^>]*><v>60<\/v>/);assert.match(sheet,/<c r="B5"[^>]*><f>SUM\(E8:E8\)<\/f><v>60<\/v>/);assert.match(sheet,/Original requested amount/);assert.match(sheet,/example_editor/);assert.match(sheet,/Example source note/);assert.equal(source.requested,120);
 });
+test('revised requests automatically update blank or matching awards and their central contributions',async()=>{
+ for(const award of [null,120]){const original={...emptyReview(),award},f=transportFixture(original),store=createRctStore({transport:f.transport,table:'exampletable'}),saved=await store.save(row().id,{...original,requested:90},'v1','editor');assert.equal(saved.row.review.award,90);assert.equal(saved.row.review.awardMode,'follow');assert.equal(saved.row.review.provost,30);assert.equal(saved.row.review.evpt,30);assert.equal(saved.row.source.requested,120);}
+});
+test('custom awards remain custom even when a revised request temporarily matches them, and can resume following',async()=>{
+ const save=async(original,change)=>{const f=transportFixture(original);return (await createRctStore({transport:f.transport,table:'exampletable'}).save(row().id,{...original,...change},'v1','editor')).row.review;};
+ let review=await save({...emptyReview(),award:80},{requested:100});assert.equal(review.award,80);assert.equal(review.awardMode,'custom');
+ review=await save(review,{requested:80});assert.equal(review.awardMode,'custom');review=await save(review,{requested:70});assert.equal(review.award,80);assert.equal(review.awardMode,'custom');
+ review=await save(review,{awardMode:'follow',award:70});assert.equal(review.award,70);assert.equal(review.awardMode,'follow');review=await save(review,{requested:60});assert.equal(review.award,60);
+ const zero=await save({...emptyReview(),award:0,decision:'Decline'},{requested:90});assert.equal(zero.award,0);assert.equal(zero.awardMode,'custom');
+});
+test('older clients preserve custom mode but deliberate different award edits stop automatic following',async()=>{
+ const custom={...emptyReview(),award:75,awardMode:'custom'},f=transportFixture(custom),store=createRctStore({transport:f.transport,table:'exampletable'});const {awardMode,...older}=custom;const saved=await store.save(row().id,{...older,requested:75},'v1','editor');assert.equal(saved.row.review.awardMode,'custom');
+ const following={...emptyReview(),award:120,awardMode:'follow'},other=transportFixture(following),changed=await createRctStore({transport:other.transport,table:'exampletable'}).save(row().id,{...following,award:70},'v1','editor');assert.equal(changed.row.review.award,70);assert.equal(changed.row.review.awardMode,'custom');
+ assert.throws(()=>validateReview({...emptyReview(),awardMode:'invalid'}));
+});
 test('RCT Excel maps all 11 proposals, preserves styles, removes links and recalculates local formulas',()=>{
  const rows=Array.from({length:11},(_,i)=>({...row(),id:'FY27-RCT2|fake-'+i,source:{...source,pi:'Example '+String(i).padStart(2,'0'),order:i},review:{...emptyReview(),award:i===0?0:100,school:i===0?null:40,provost:i===0?null:60,decision:'Support',notes:'=NOT_A_FORMULA & <text>'}}));
  const zip=unzipSync(exportReviews(template(),rows)),sheet=strFromU8(zip['xl/worksheets/sheet1.xml']);

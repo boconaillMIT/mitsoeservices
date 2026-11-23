@@ -7,7 +7,7 @@ export const localFundingEntries=review=>Object.keys(LOCAL_LABELS).map(key=>({ke
 export const localFundingTitle=review=>['SoE',...localFundingEntries(review).map(x=>x.label)].join(' / ');
 export const MONEY=['award',...FUNDING.map(([key])=>key)];
 export const REVIEWERS=['Hammond','Balakrishnan','Plata','Solomon','',''];
-export const emptyReview=()=>({requested:null,requestedHistory:[],...Object.fromEntries(MONEY.map(k=>[k,null])),fundingLabels:{...LOCAL_LABELS},commentStamps:{notes:null,reviewers:REVIEWERS.map(()=>null)},decision:'',notes:'',assignments:[],reviewers:REVIEWERS.map(name=>({name,grade:'',comments:''})),priority:null,gradStudents:null,autoCentral:true,vpr:null,notesHistory:[],finalVersion:null});
+export const emptyReview=()=>({awardMode:null,requested:null,requestedHistory:[],...Object.fromEntries(MONEY.map(k=>[k,null])),fundingLabels:{...LOCAL_LABELS},commentStamps:{notes:null,reviewers:REVIEWERS.map(()=>null)},decision:'',notes:'',assignments:[],reviewers:REVIEWERS.map(name=>({name,grade:'',comments:''})),priority:null,gradStudents:null,autoCentral:true,vpr:null,notesHistory:[],finalVersion:null});
 export function commentStampText(stamp){return stamp?new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',dateStyle:'medium',timeStyle:'long'}).format(new Date(stamp.at))+' · '+stamp.by:'';}
 export const stampedComment=(text,stamp)=>text?(stamp?'Saved '+commentStampText(stamp)+'\n':'')+text:'';
 export function reviewerPriorityStats(review){
@@ -23,6 +23,13 @@ export function centralThirds(award){const third=Math.round(award*100/3)/100;ret
 // VPR and the former manual-central flag are accepted for old saved records only.
 // Funding always uses the six active sources and fixed central thirds.
 export const requestedTotal=(review,source)=>review.requested??source?.requested??null;
+export const awardModeFor=(review,source)=>review.awardMode??(review.award===null||review.award===requestedTotal(review,source)?'follow':'custom');
+export function syncRequestedAward(previous,next,source,{modeProvided=true,awardChanged=next.award!==previous.award}={}){
+ let mode=modeProvided&&next.awardMode?next.awardMode:awardModeFor(previous,source);
+ if(awardChanged&&(!modeProvided||mode==='follow'))mode=next.award===null||next.award===requestedTotal(next,source)?'follow':'custom';
+ const changed=requestedTotal(previous,source)!==requestedTotal(next,source),resumed=mode==='follow'&&awardModeFor(previous,source)==='custom';
+ return {...next,awardMode:mode,award:mode==='follow'&&(changed||resumed)?requestedTotal(next,source):next.award};
+}
 export const fundingTotal=(review,source)=>review.award??requestedTotal(review,source);
 export const requestAmountNotes=(review,source)=>{const amount=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(n);return review.requestedHistory?.length?'Original requested amount: '+amount(source.requested)+'\n'+review.requestedHistory.map(v=>commentStampText(v)+' · '+(v.amount===null?'Restored original amount: '+amount(source.requested):'Revised requested amount: '+amount(v.amount))).join('\n'):'';};
 export function fundingReview(review,source){const total=fundingTotal(review,source),thirds=total===null?null:centralThirds(total);return {...review,autoCentral:true,provost:thirds?.provost??null,evpt:thirds?.evpt??null};}
@@ -33,8 +40,9 @@ export function departmentInfo(source){
 }
 export function sortProposals(records){return [...records].sort((a,b)=>departmentInfo(a.source).number-departmentInfo(b.source).number||departmentInfo(a.source).label.localeCompare(departmentInfo(b.source).label)||a.source.pi.localeCompare(b.source.pi));}
 export function validateReview(value){
- if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>![...MONEY,'requested','requestedHistory','fundingLabels','commentStamps','assignments','vpr','decision','notes','reviewers','priority','gradStudents','autoCentral','notesHistory','finalVersion'].includes(k)))throw Error('Invalid review fields.');
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>![...MONEY,'awardMode','requested','requestedHistory','fundingLabels','commentStamps','assignments','vpr','decision','notes','reviewers','priority','gradStudents','autoCentral','notesHistory','finalVersion'].includes(k)))throw Error('Invalid review fields.');
  const result=emptyReview();
+ if(value.awardMode!==undefined&&value.awardMode!==null&&!['follow','custom'].includes(value.awardMode))throw Error('Invalid award mode.');result.awardMode=value.awardMode??null;
  if(value.assignments!==undefined){if(!Array.isArray(value.assignments)||value.assignments.length>MAX_RCT_REVIEWERS||new Set(value.assignments).size!==value.assignments.length||value.assignments.some(key=>typeof key!=='string'||!REVIEWER_KEY.test(key)))throw Error('Invalid reviewer assignments.');result.assignments=[...value.assignments];}
  if(value.commentStamps!==undefined){const meta=value.commentStamps;const stamp=s=>{if(s===null)return null;if(!s||typeof s!=='object'||Array.isArray(s)||Object.keys(s).some(k=>!['by','at'].includes(k))||typeof s.by!=='string'||!s.by.trim()||s.by.length>100||/[\x00-\x1f\x7f]/.test(s.by)||typeof s.at!=='string'||!Number.isFinite(Date.parse(s.at)))throw Error('Invalid comment stamp.');return {by:s.by,at:s.at};};if(!meta||typeof meta!=='object'||Array.isArray(meta)||Object.keys(meta).some(k=>!['notes','reviewers'].includes(k))||!Array.isArray(meta.reviewers)||(meta.reviewers.length<6||meta.reviewers.length>MAX_RCT_REVIEWERS))throw Error('Invalid comment stamps.');result.commentStamps={notes:stamp(meta.notes),reviewers:meta.reviewers.map(stamp)};}
  if(value.fundingLabels!==undefined){const labels=value.fundingLabels;if(!labels||typeof labels!=='object'||Array.isArray(labels)||Object.keys(labels).some(k=>!Object.hasOwn(LOCAL_LABELS,k)))throw Error('Invalid funding names.');for(const key of Object.keys(LOCAL_LABELS)){const label=labels[key];if(label===undefined)continue;if(typeof label!=='string'||!label.trim()||label.length>60||/[\x00-\x1f\x7f]/.test(label))throw Error('Funding names must contain 1 to 60 characters.');result.fundingLabels[key]=label.trim();}}

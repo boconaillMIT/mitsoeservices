@@ -3,7 +3,7 @@ import {REVIEWER_DIRECTORY} from '../public/rct-reviewers.mjs';
 import {randomUUID} from 'node:crypto';
 import {createQbTransport} from './budget-hq-qb.mjs';
 import config from './rct-tables.json' with {type:'json'};
-import {ROUND,validateReview,fundingReview,sortProposals} from './rct-model.mjs';
+import {ROUND,validateReview,fundingReview,sortProposals,syncRequestedAward} from './rct-model.mjs';
 const xml=s=>String(s).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
 const unxml=s=>s.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&');
 export function createRctStore({transport=createQbTransport(),table=config.reviews,uuid=randomUUID,now=()=>new Date()}={}){
@@ -22,7 +22,8 @@ export function createRctStore({transport=createQbTransport(),table=config.revie
   if(Array.isArray(review.assignments)){const visible=new Set(knownReviewerKeys);review={...review,assignments:[...new Set([...review.assignments,...row.review.assignments.filter(key=>!visible.has(key))])]};}
   if(Array.isArray(review.reviewers)){const incoming=review.reviewers.map((v,i)=>row.review.reviewers[i]?.reviewerKey&&!v.reviewerKey?{...v,reviewerKey:row.review.reviewers[i].reviewerKey}:v);review={...review,reviewers:[...incoming,...row.review.reviewers.slice(incoming.length)]};}
   if(review.requested===row.source.requested)review={...review,requested:null};
-  review=validateReview({...row.review,...review,vpr:row.review.vpr,notesHistory:row.review.notesHistory,commentStamps:row.review.commentStamps,requestedHistory:row.review.requestedHistory});
+  const modeProvided=Object.hasOwn(review,'awardMode'),awardChanged=Object.hasOwn(review,'award')&&review.award!==row.review.award;
+  review=syncRequestedAward(row.review,validateReview({...row.review,...review,vpr:row.review.vpr,notesHistory:row.review.notesHistory,commentStamps:row.review.commentStamps,requestedHistory:row.review.requestedHistory}),row.source,{modeProvided,awardChanged});
   if(review.requested!==row.review.requested)review.requestedHistory.push({amount:review.requested,by:actor,at});
   const archive=(text,stamp)=>review.notesHistory.push({text,by:stamp?.by||'Earlier entry',at:stamp?.at||at});
   if(review.notes!==row.review.notes){if(row.review.notes)archive(row.review.notes,row.review.commentStamps.notes);review.commentStamps.notes={by:actor,at};}
