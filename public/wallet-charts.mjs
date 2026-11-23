@@ -2,7 +2,7 @@ const controls=[['department','Department controlled','#306249'],['faculty','Fac
 const finite=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
 export function historyPoints(rows,type){
  const selected=rows.filter(r=>r.type===type),years=[...new Set(selected.map(r=>r.year))].sort((a,b)=>a-b);
- const sum=items=>{const known=items.filter(r=>finite(r.amount));return items.length&&!known.length?null:known.reduce((n,r)=>n+Math.round(Number(r.amount)*100),0)/100;};
+ const sum=items=>{const known=items.filter(r=>finite(r.amount));return items.length&&!known.length&&type!=='GIB Carryforward'?null:known.reduce((n,r)=>n+Math.round(Number(r.amount)*100),0)/100;};
  return years.map(year=>{
   const items=selected.filter(r=>r.year===year);
   return {year,total:sum(items),department:sum(items.filter(r=>r.admin==='DP')),faculty:sum(items.filter(r=>r.admin==='FC')),other:sum(items.filter(r=>!['DP','FC'].includes(r.admin))),blanks:items.filter(r=>!finite(r.amount)).length,projection:items.some(r=>r.projection===true||r.projection===1||r.projection==='1'),periods:[...new Set(items.map(r=>String(r.period||'')).filter(Boolean))]};

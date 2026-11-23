@@ -46,3 +46,10 @@ a:not(.brand):not(.nav):not(.download):not(.desktop){color:#750014}.desktop{bord
 .wallet-unit-choices[hidden]{display:none}
 
 .submission-outlook{margin:18px 0;padding:18px;border:1px solid #d9dfd5;border-left:4px solid #8a1538;border-radius:8px;background:#fff}.submission-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:14px}.submission-facts dd{margin:5px 0;font-weight:700}.submission-table{width:100%;font-size:.9rem}.submission-table th,.submission-table td{padding:8px;text-align:right}.submission-table th:first-child,.submission-table td:first-child{text-align:left}
+
+.comparison-resource-section{margin:24px 0 32px;padding-top:10px;border-top:2px solid #d9dfd5}.comparison-resource-section>h3{font-size:22px;color:#750014;margin:8px 0 16px}.comparison-resource-section .wallet-comparison-grid{align-items:start}
+
+.comparison-series-legend{display:flex;flex-wrap:wrap;gap:12px 20px;margin:8px 0 20px;font-size:14px}
+.comparison-series-key{display:inline-flex;align-items:center;gap:8px}
+.comparison-series-swatch{display:inline-block;width:24px;height:4px;border-radius:2px}
+#wallet-comparison>label{max-width:calc(100% - 18px);min-width:0}#wallet-comparison select{min-width:0;width:100%;box-sizing:border-box}

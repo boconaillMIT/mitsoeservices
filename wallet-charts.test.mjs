@@ -10,3 +10,10 @@ test('missing historical amounts remain unavailable while actual zero is preserv
  const points=historyPoints([row(2024,'DP',null),row(2024,'FC',null),row(2025,'DP',0),row(2026,'DP',100),row(2026,'DP',null)],'Pool A Payout');
  assert.equal(points[0].total,null);assert.equal(points[0].department,null);assert.equal(points[0].blanks,2);assert.equal(points[1].total,0);assert.equal(points[2].department,100);assert.equal(points[2].blanks,1);
 });
+
+// Budget Office carryforward summaries use SUMIFS: inactive account/year blanks
+// in an existing group contribute zero, as in the wallet comparison.
+test('carryforward history follows wallet zero totals for inactive account/year entries',()=>{
+ const points=historyPoints([{type:'GIB Carryforward',year:2025,admin:'DP',amount:null},{type:'GIB Carryforward',year:2025,admin:'FC',amount:100},{type:'GIB Carryforward',year:2026,admin:'DP',amount:50}],'GIB Carryforward');
+ assert.equal(points[0].department,0);assert.equal(points[0].total,100);assert.equal(points[1].department,50);
+});
