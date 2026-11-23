@@ -1,3 +1,4 @@
+import {requestRevision,compareRequestPriority} from '../public/budget-priority.mjs';
 import {reserveMetrics} from '../public/reserve-metrics.mjs';
 import {consolidateHistoryRows} from './budget-history-groups.mjs';
 // SoE HQ budget cycle: per-unit request lines (QuickBase budget table), draft decisions
@@ -77,7 +78,7 @@ export function rollUp(lines){
  return {lines:lines.length,request_funding:sumRequestFunding(lines),unpriced:lines.filter(l=>l.requested===null).length,source_workbooks:[...new Set(lines.flatMap(l=>l.source?.sources?.map(s=>s.workbook)||[]))],source_documents:[...new Set(lines.flatMap(l=>l.source?.submissions?.map(s=>s.document)||[]))],requested:lines.length&&lines.every(l=>l.requested===null)?null:r0(sum('requested')),recurring:r0(sum('recurring')),onetime:r0(sum('onetime')),supported:r0(sum('supported')),soe:r0(sum('soe')),provost:r0(sum('provost')),
   declined_requested:r0(lines.filter(l=>l.decision==='decline').reduce((s,l)=>s+(l.requested??0),0)),pending:count('pending'),supported_count:count('support'),declined_count:count('decline')};
 }
-const lineOf=(a,decisions)=>({record_id:a.record_id,description:a.revised||a.original||a.request,original:a.original,revised:a.revised,category:a.category,source:a.source,request_funding:a.requestFunding,recurring:a.recurring,onetime:a.onetime,requested:a.requested,qb_status:a.decision,...applyDecision(a,decisions?.[a.record_id]),version:decisions?.[a.record_id]?.version||null});
+const lineOf=(a,decisions)=>({record_id:a.record_id,description:a.revised||a.original||a.request,original:a.original,revised:a.revised,category:a.category,source:a.source,priority:requestRevision(a,a.unit_key,a.year)?.priority??null,request_funding:a.requestFunding,recurring:a.recurring,onetime:a.onetime,requested:a.requested,qb_status:a.decision,...applyDecision(a,decisions?.[a.record_id]),version:decisions?.[a.record_id]?.version||null});
 
 // ---------- reserves snapshot (anonymous peers) ----------
 let reserveCache=new Map();
@@ -150,7 +151,7 @@ export function createBudgetHqDataHandler({authorize=access.authorize,asks=loadA
   if(!knownUnit(key))return reply(404,{error:'Unknown unit.'});
   const info=unitInfo(key,[...new Set(list.map(a=>a.unit))]);
   const saved=ready?await store.unit(c.cycle,key):{decisions:{},sections:Object.fromEntries(Object.keys(NOTE_SECTIONS).map(k=>[k,{text:'',updated_by:null,updated_at:null,version:null}])),link:{url:'',version:null},log:[]};
-  const lines=list.map(a=>lineOf(a,saved.decisions)).sort((a,b)=>(b.requested??0)-(a.requested??0));
+  const lines=list.map(a=>lineOf(a,saved.decisions)).sort(compareRequestPriority);
   let history=[];try{const past=all.filter(a=>a.unit_key===key&&a.year&&a.year<c.year);const ys=[...new Set(past.map(a=>a.year))].sort();
    history=ys.map(y=>{const g=past.filter(a=>a.year===y),s=k=>g.reduce((t,a)=>t+(a[k]??0),0);return {year:y,requested:r0(s('requested')),provost:r0(s('provost')),school:r0(s('school')),scc:r0(s('scc')),sources:past.filter(a=>a.year===y).map(a=>({description:a.revised||a.original||a.request,source:a.source})).filter(a=>a.source?.sources?.length),unresolved:r0(s('unresolved')),declined:r0(s('declined')),approved:r0(s('provost')+s('school')+s('scc')+s('unresolved'))};});}catch{}
   let snapshot=null;if(info.has_wallet&&auth.features?.wallets!==false){try{snapshot=await reserveSnapshot(key,{reserves});}catch(e){console.error('Budget HQ reserves:',e.message);}}
