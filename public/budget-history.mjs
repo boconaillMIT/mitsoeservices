@@ -11,7 +11,25 @@ export function bindBudgetPerspective(container){
  const onClick=event=>{const button=event.target.closest('[data-history-switch]');if(!button||!container.contains(button))return;const root=button.closest('[data-history-perspective]');setBudgetPerspective(root,root.dataset.historyPerspective==='years'?'lines':'years');};
  container.addEventListener('click',onClick);return ()=>container.removeEventListener('click',onClick);
 }
+export function requestBreakdown(request,unitKey,year){
+ const b=request.source?.request_breakdown;
+ if(!b||b.schema!==1||b.unit!==unitKey||b.year!==year||!/^\d{4}-\d{2}-\d{2}$/.test(b.date||'')||typeof b.document!=='string'||b.document.length>200||(!Number.isFinite(request.requested)||request.requested<=0)||!Array.isArray(b.items)||b.items.length<2||b.items.length>10)return [];
+ if(!b.items.every(i=>i&&typeof i.description==='string'&&i.description.length>0&&i.description.length<=200&&Number.isFinite(i.amount)&&i.amount>=0))return [];
+ if(b.items.reduce((n,i)=>n+Math.round(i.amount*100),0)!==Math.round(request.requested*100))return [];
+ return b.items;
+}
+export function requestBreakdownHtml(request,unitKey,year){
+ const items=requestBreakdown(request,unitKey,year);return items.length?`<ul class="bh-request-breakdown">${items.map(i=>`<li>${esc(i.description)}: <strong>${money(i.amount)}</strong></li>`).join('')}</ul>`:'';
+}
+export function comparisonRequests(request,unitKey,year){
+ const items=requestBreakdown(request,unitKey,year);if(!items.length)return [request];
+ const allocate=value=>{if(!Number.isFinite(value))return items.map(()=>null);const total=Math.round(value*100),parts=items.map(i=>Math.floor(total*i.amount/request.requested));let remaining=total-parts.reduce((n,v)=>n+v,0);for(let i=0;remaining>0;i=(i+1)%parts.length,remaining--)parts[i]++;return parts.map(n=>n/100);};
+ const fields=['supported','soe','provost','approved','school','scc','unresolved','declined','initial_declined'],allocated=Object.fromEntries(fields.map(k=>[k,allocate(request[k])]));
+ const funding=Object.fromEntries(Object.entries(request.request_funding||{}).map(([k,v])=>[k,allocate(v)]));
+ return items.map((item,index)=>({...request,description:item.description,requested:item.amount,component_parent:request.description,source:null,...Object.fromEntries(fields.map(k=>[k,allocated[k][index]])),request_funding:Object.fromEntries(Object.entries(funding).map(([k,v])=>[k,v[index]]))}));
+}
 export function renderBudgetHistory(years=[],{unitKey='',perspective='lines'}={}){
+ years=years.map(y=>({...y,requests:(y.requests||[]).flatMap(r=>comparisonRequests(r,unitKey,y.year))}));
  const showYears=perspective==='years';
  return `<div class="bh-perspectives" data-history-perspective="${showYears?'years':'lines'}"><div class="bh-perspective-toolbar bh-noprint"><strong data-history-view-label aria-live="polite">${showYears?'Year scorecards':'Line-item comparison'}</strong><button type="button" data-history-switch aria-controls="bh-perspective-lines bh-perspective-years" aria-label="${showYears?'Switch to line-item comparison':'Switch to year scorecards'}">${showYears?'‹ Line-item comparison':'Year view ›'}</button></div><section id="bh-perspective-lines" data-history-panel="lines"${showYears?' hidden':''}>${renderAlignedHistory(years,{unitKey})}</section><section id="bh-perspective-years" data-history-panel="years"${showYears?'':' hidden'}>${renderYearCards(years)}</section></div>`;
 }
@@ -26,8 +44,10 @@ export function requestFamily(request,unitKey='',year=''){
  if(/^(?:undergrad|undergraduate) (?:office staff|academic administrator(?: repeat request)?)$/.test(n))return {key:'undergraduate-office',label:'Undergraduate office staff'};
  if(/\bhr (?:admin|administrator)\b/.test(n)&&!n.includes('critical staff'))return {key:'hr-administrator',label:'HR administration'};
  if(unitKey==='meche'){
+  if(/^hr representative\b/.test(n))return {key:'hr-administrator',label:'HR administration'};
+  if(/^(?:senior|sr) technical instructor\b/.test(n))return {key:'senior-technical-instructor',label:'Senior technical instructor'};
   if(/^(?:ug|first year) exploratory$/.test(n))return {key:'exploratory',label:'First-year exploratory teaching'};
-  if(/^(?:financial officer|sra fo)$/.test(n))return {key:'finance-research-admin',label:'Finance / research administration'};
+  if(/^(?:financial officer|sra fo)$/.test(n)||/^senior research administrator\b/.test(n))return {key:'finance-research-admin',label:'Finance / research administration'};
  }
  if(unitKey==='aeroastro'&&/^(?:non faculty teaching|teaching course development support)/.test(n))return {key:'teaching-support',label:'Teaching / course support'};
  if(unitKey==='nse'&&/^(?:replacement teaching|teaching support)/.test(n))return {key:'teaching-support',label:'Teaching support'};
@@ -54,7 +74,7 @@ export function budgetComparison(history,lines,year){
 function renderCurrent(y){
  const recMoney=v=>Number.isFinite(v)?money(v):'Not yet decided';
  const askLabels=[['SoE / Dean','dean'],['Provost','provost'],['SCC','scc'],['Unassigned','unassigned']];
- return `<article class="bh-history-year bh-history-current" aria-label="FY${String(y.year).slice(-2)} current requests and recommendations"><div class="bh-history-head"><h4>FY${String(y.year).slice(-2)} · Current</h4><p class="bh-history-label">Current asks${y.unpriced?' · incomplete':''}</p><p class="bh-history-amount">${money(y.requested)}</p><p class="bh-history-label">${y.lines} request line${y.lines===1?'':'s'} · ${y.pending} awaiting recommendation</p></div>${y.lines?`<dl class="bh-history-totals"><dt>Recommended support</dt><dd><strong>${recMoney(y.supported)}</strong></dd><dt>Proposed SoE share</dt><dd>${recMoney(y.school)}</dd><dt>Proposed Provost share</dt><dd>${recMoney(y.provost)}</dd><dt>Recommended declines</dt><dd>${recMoney(y.declined)}</dd></dl><ul class="bh-history-requests">${y.requests.map(r=>{const supported=r.decision==='support',declined=r.decision==='decline',asks=askLabels.filter(([,k])=>Number.isFinite(r.request_funding?.[k])).map(([label,k])=>'Asked of '+label+' '+money(r.request_funding[k]));return `<li><p class="bh-history-name">${esc(r.description)}</p><span class="bh-history-status ${supported?'partial':declined?'initial':'unknown'}">${supported?'Recommended support':declined?'Recommended decline':'Awaiting recommendation'}</span><p class="bh-history-detail">Asked ${money(r.requested)}${asks.length?'<br>'+asks.join('<br>'):''}${supported?'<br>Recommended '+money(r.supported)+'<br>Proposed SoE '+money(r.soe)+'<br>Proposed Provost '+money(r.provost):''}</p></li>`;}).join('')}</ul>`:'<p class="bh-history-empty">No current request recorded for this year.</p>'}</article>`;
+ return `<article class="bh-history-year bh-history-current" aria-label="FY${String(y.year).slice(-2)} current requests and recommendations"><div class="bh-history-head"><h4>FY${String(y.year).slice(-2)} · Current</h4><p class="bh-history-label">Current asks${y.unpriced?' · incomplete':''}</p><p class="bh-history-amount">${money(y.requested)}</p><p class="bh-history-label">${y.lines} request line${y.lines===1?'':'s'} · ${y.pending} awaiting recommendation</p></div>${y.lines?`<dl class="bh-history-totals"><dt>Recommended support</dt><dd><strong>${recMoney(y.supported)}</strong></dd><dt>Proposed SoE share</dt><dd>${recMoney(y.school)}</dd><dt>Proposed Provost share</dt><dd>${recMoney(y.provost)}</dd><dt>Recommended declines</dt><dd>${recMoney(y.declined)}</dd></dl><ul class="bh-history-requests">${y.requests.map(r=>{const supported=r.decision==='support',declined=r.decision==='decline',asks=askLabels.filter(([,k])=>Number.isFinite(r.request_funding?.[k])).map(([label,k])=>'Asked of '+label+' '+money(r.request_funding[k]));return `<li><p class="bh-history-name">${esc(r.description)}</p><span class="bh-history-status ${supported?'partial':declined?'initial':'unknown'}">${supported?'Recommended support':declined?'Recommended decline':'Awaiting recommendation'}</span><p class="bh-history-detail">${r.component_parent?`Part of ${esc(r.component_parent)}.<br>`:''}Asked ${money(r.requested)}${asks.length?'<br>'+asks.join('<br>'):''}${supported?'<br>Recommended '+money(r.supported)+'<br>Proposed SoE '+money(r.soe)+'<br>Proposed Provost '+money(r.provost):''}</p></li>`;}).join('')}</ul>`:'<p class="bh-history-empty">No current request recorded for this year.</p>'}</article>`;
 }
 export function historicalStatus(r){
  if(r.approved>0)return {kind:r.requested!==null&&r.approved<r.requested?'partial':'full',label:r.requested!==null&&r.approved<r.requested?'Part funded':'Funded'};
@@ -67,7 +87,7 @@ function alignedEntry(r,current){
  const supported=r.decision==='support',declined=r.decision==='decline';
  const status=current?{kind:supported?'partial':declined?'initial':'unknown',label:supported?'Recommended support':declined?'Recommended decline':'Awaiting recommendation'}:historicalStatus(r);
  const amounts=current?[['SoE / Dean','dean'],['Provost','provost'],['SCC','scc'],['Unassigned','unassigned']].filter(([,k])=>Number.isFinite(r.request_funding?.[k])&&r.request_funding[k]!==0).map(([label,k])=>'Asked of '+label+' '+money(r.request_funding[k])):payers.filter(([,k])=>r[k]>0).map(([label,k])=>label+' '+money(r[k]));
- return `<div class="bh-aligned-entry"><p class="bh-history-name">${esc(r.description)}</p><p class="bh-aligned-ask">Asked ${money(r.requested)}</p><span class="bh-history-status ${status.kind}">${status.label}</span><p class="bh-history-detail">${current?amounts.join('<br>'):amounts.length?amounts.join('<br>'):'Funding amount '+money(r.approved)}${current&&supported?'<br>Recommended '+money(r.supported)+'<br>Proposed SoE '+money(r.soe)+'<br>Proposed Provost '+money(r.provost):''}${!current&&r.initial_declined>0?'<br>Initial decline '+money(r.initial_declined):''}${!current&&r.declined>0?'<br>Final decline '+money(r.declined):''}</p></div>`;
+ return `<div class="bh-aligned-entry"><p class="bh-history-name">${esc(r.description)}</p><p class="bh-aligned-ask">Asked ${money(r.requested)}</p>${r.component_parent?`<p class="bh-history-label">Part of ${esc(r.component_parent)}; recommendation applies to the combined request.</p>`:''}<span class="bh-history-status ${status.kind}">${status.label}</span><p class="bh-history-detail">${current?amounts.join('<br>'):amounts.length?amounts.join('<br>'):'Funding amount '+money(r.approved)}${current&&supported?'<br>Recommended '+money(r.supported)+'<br>Proposed SoE '+money(r.soe)+'<br>Proposed Provost '+money(r.provost):''}${!current&&r.initial_declined>0?'<br>Initial decline '+money(r.initial_declined):''}${!current&&r.declined>0?'<br>Final decline '+money(r.declined):''}</p></div>`;
 }
 function renderAlignedHistory(years=[],{unitKey=''}={}){
  const groups=alignBudgetRequests(years,unitKey),fy=y=>'FY'+String(y).slice(-2);

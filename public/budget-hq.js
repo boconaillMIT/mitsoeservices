@@ -1,7 +1,7 @@
 import {startBudgetWalletExtract} from './budget-wallet-extract.mjs';
 import {submissionHtml,submissionLineHtml} from '/budget-submission.mjs';
 import {workbookSourceHtml,sumRequestFunding} from '/budget-model.mjs';
-import {renderBudgetHistory,budgetComparison,bindBudgetPerspective} from '/budget-history.mjs';
+import {renderBudgetHistory,budgetComparison,bindBudgetPerspective,requestBreakdownHtml} from '/budget-history.mjs';
 // SoE HQ → Budget: cycle roll-up and unit pages. Data: /.netlify/functions/budget-hq-data
 const $=s=>document.querySelector(s);
 const root=$('#bh'),view=root.dataset.view,cycle=root.dataset.cycle,unitKey=root.dataset.unit;
@@ -78,7 +78,7 @@ function chip(t){const s=!t.lines?['none','No requests']:t.pending===t.lines?['o
 const LEVELS=[100,75,50,25];
 function lineRow(l){
  const edit=data.can_edit,sup=l.decision==='support',custom=sup&&!LEVELS.includes(l.support_pct);
- const desc=`${l.requested===null?'<p class="bv-status error">Amount not specified — excluded from dollar totals.</p>':''}<div class="bh-desc">${esc(l.description||'(no description)')}</div>${l.revised&&l.original&&l.revised!==l.original?`<details class="bh-noprint"><summary>Original request</summary>${esc(l.original)}</details>`:''}<div class="bv-status">${esc(l.category||'Uncategorised')}${l.qb_status?' · QuickBase status: '+esc(l.qb_status):''}</div>`;
+ const desc=`${l.requested===null?'<p class="bv-status error">Amount not specified — excluded from dollar totals.</p>':''}<div class="bh-desc">${esc(l.description||'(no description)')}</div>${requestBreakdownHtml(l,unitKey,data.year)}${l.revised&&l.original&&l.revised!==l.original?`<details class="bh-noprint"><summary>Original request</summary>${esc(l.original)}</details>`:''}<div class="bv-status">${esc(l.category||'Uncategorised')}${l.qb_status?' · QuickBase status: '+esc(l.qb_status):''}</div>`;
  const sourceContext=workbookSourceHtml(l.source);
  const amounts=`<td class="n bh-dean">${money(l.request_funding?.dean)}</td><td class="n">${money(l.request_funding?.provost)}</td><td class="n">${money(l.request_funding?.scc)}</td><td class="n"><strong>${money(l.requested)}</strong></td>`;
  const result=`<td class="n" data-out="supported">${l.decision==='pending'?'—':money(l.supported)}</td><td class="n" data-out="soe">${sup?money(l.soe):'—'}</td><td class="n" data-out="provost">${sup?money(l.provost):'—'}</td>`;
