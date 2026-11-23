@@ -86,6 +86,8 @@ and adjust `changed` (public files that change) and `ADDED` (new function names)
 
 Budget briefing release invariant: for every user with wallet access, keep the published GIB carryforward and expendable-balance history charts at the top of the Dean's briefing, before request comparisons and notes. Keep the extract when printing, switching history views, and saving decisions. Budget-only department grants do not gain wallet access. Any release touching budget or wallet UI must browser-check this placement using the actual staged/public assets and fictional data, including MechE first, other wallet-backed units, loading failure/retry, and restricted permissions. Do not remove the extract as part of a layout or memo update.
 
+Budget submission release invariant: keep the full-submission link at the top of each unit briefing when files are available. Submission bytes belong in the dedicated QuickBase file table, never public assets or Git. Recheck the same budget unit permission on every list and download request, including copied links and revoked grants. Browser-check top links for all units with published materials, scoped viewers, failed loading/retry, and preservation of the wallet extract.
+
 Never promote a draft via the restore API: drafts lack production environment variables, which
 caused a 503 once. Long uploads need generous timeouts (scripts allow 20 minutes, with retries).
 

@@ -1,3 +1,4 @@
+import {startBudgetDocuments} from './budget-documents.mjs';
 import {startBudgetWalletExtract} from './budget-wallet-extract.mjs';
 import {submissionHtml,submissionLineHtml} from '/budget-submission.mjs';
 import {workbookSourceHtml,sumRequestFunding} from '/budget-model.mjs';
@@ -51,6 +52,7 @@ function renderUnit(){
  const prev=h[h.length-1],ry=r?.unit?.years?.[r.unit.years.length-1];
  $('#bh-content').innerHTML=`
  <div class="bh-head bh-noprint"><div class="bh-chips">${chip(t)}</div><button type="button" id="bh-print">Print briefing</button></div>
+ <section class="bv-panel bh-submission-documents" aria-label="Full budget submission"></section>
  ${fundingCards(t)}
  <div class="bv-kpis">${tile(fy(data.year)+' request',short(t.requested),`${short(t.recurring)} recurring · ${short(t.onetime)} one-time${t.unpriced?` · ${t.unpriced} amount not specified`:''}`)
   +tile('HQ support so far',short(t.supported),t.supported?`SoE ${short(t.soe)} · Provost ${short(t.provost)}`:t.pending+' lines pending')
@@ -70,7 +72,7 @@ function renderUnit(){
  ${data.restricted?'':'<section class="bv-panel"><h2>Wallet snapshot</h2><div class="bv-scroll" id="bh-wallet"></div></section>'}
  <section class="bv-panel bh-noprint"><div class="bh-head"><h2>Documents</h2><a class="desktop" href="${API}?cycle=${cycle}&amp;unit=${encodeURIComponent(unitKey)}&amp;format=csv">Download this department’s requests (CSV)</a></div><div id="bh-files"></div></section>
  <section class="bv-panel bh-noprint"><h2>Change history</h2><div id="bh-audit"></div></section>`;
- if(data.submission)$('#bh-files').closest('section').insertAdjacentHTML('beforebegin','<section class="bv-panel">'+submissionHtml(data.submission)+'</section>');const walletReady=startBudgetWalletExtract(root.querySelector('.bh-wallet-extract'),unitKey,{controller:unitKey==='school'?'School':'Department'});notes();files();lines();history();if(!data.restricted){position();wallet();}audit();
+ if(data.submission)$('#bh-files').closest('section').insertAdjacentHTML('beforebegin','<section class="bv-panel">'+submissionHtml(data.submission)+'</section>');const walletReady=startBudgetWalletExtract(root.querySelector('.bh-wallet-extract'),unitKey,{controller:unitKey==='school'?'School':'Department'});startBudgetDocuments(root.querySelector('.bh-submission-documents'),{cycle,unit:unitKey});notes();files();lines();history();if(!data.restricted){position();wallet();}audit();
  $('#bh-print').addEventListener('click',async()=>{await walletReady;window.print();});
 }
 function chip(t){const s=!t.lines?['none','No requests']:t.pending===t.lines?['open','Not started']:t.pending?['review','In review · '+t.pending+' pending']:['done','All lines decided'];return `<span class="bh-chip ${s[0]}">${s[1]}</span>`;}
