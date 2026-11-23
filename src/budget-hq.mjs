@@ -4,6 +4,7 @@
 // QuickBase tables of their own (see budget-hq-qb.mjs); the site stores nothing. Decisions are
 // NOT written to the budget table's historical "Approved" fields, which feed the Budget Explorer.
 // Access: viewing needs school-wide read (full audience); changing decisions needs school-wide write.
+import {latestSubmission} from '../public/budget-submission.mjs';
 import access from './access.cjs';
 import policy from './policy.cjs';
 import units from './units.cjs';
@@ -71,7 +72,7 @@ export function applyDecision(ask,dec){
 }
 export function rollUp(lines){
  const sum=k=>lines.reduce((s,l)=>s+(l[k]??0),0),count=d=>lines.filter(l=>l.decision===d).length;
- return {lines:lines.length,request_funding:sumRequestFunding(lines),unpriced:lines.filter(l=>l.requested===null).length,source_workbooks:[...new Set(lines.flatMap(l=>l.source?.sources?.map(s=>s.workbook)||[]))],requested:lines.length&&lines.every(l=>l.requested===null)?null:r0(sum('requested')),recurring:r0(sum('recurring')),onetime:r0(sum('onetime')),supported:r0(sum('supported')),soe:r0(sum('soe')),provost:r0(sum('provost')),
+ return {lines:lines.length,request_funding:sumRequestFunding(lines),unpriced:lines.filter(l=>l.requested===null).length,source_workbooks:[...new Set(lines.flatMap(l=>l.source?.sources?.map(s=>s.workbook)||[]))],source_documents:[...new Set(lines.flatMap(l=>l.source?.submissions?.map(s=>s.document)||[]))],requested:lines.length&&lines.every(l=>l.requested===null)?null:r0(sum('requested')),recurring:r0(sum('recurring')),onetime:r0(sum('onetime')),supported:r0(sum('supported')),soe:r0(sum('soe')),provost:r0(sum('provost')),
   declined_requested:r0(lines.filter(l=>l.decision==='decline').reduce((s,l)=>s+(l.requested??0),0)),pending:count('pending'),supported_count:count('support'),declined_count:count('decline')};
 }
 const lineOf=(a,decisions)=>({record_id:a.record_id,description:a.revised||a.original||a.request,original:a.original,revised:a.revised,category:a.category,source:a.source,request_funding:a.requestFunding,recurring:a.recurring,onetime:a.onetime,requested:a.requested,qb_status:a.decision,...applyDecision(a,decisions?.[a.record_id]),version:decisions?.[a.record_id]?.version||null});
@@ -158,7 +159,7 @@ export function createBudgetHqDataHandler({authorize=access.authorize,asks=loadA
    return {statusCode:200,headers:{...base,'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="${c.cycle.toUpperCase()}-${key}-budget.csv"`},body:csv};
   }
   return reply(200,{cycle:c.cycle,year:c.year,restricted:Boolean(auth.budgetRestricted),unit:info,lines,totals:rollUp(lines),history,recent_budget_outcomes:recentBudgetOutcomes(all,key,c.year),reserves:snapshot,storage_ready:ready,can_edit:canEdit,
-   notes:{sections:saved.sections},note_sections:NOTE_SECTIONS,folder:saved.link,log:saved.log,generated_at:now().toISOString()});
+   submission:latestSubmission(list,key,c.year),notes:{sections:saved.sections},note_sections:NOTE_SECTIONS,folder:saved.link,log:saved.log,generated_at:now().toISOString()});
  }
  const decided=ready?await store.cycleDecisions(c.cycle):{};
  const keys=[...new Set([...Object.keys(units.UNITS).filter(k=>k!=='soe-fake'),...byUnit.keys(),...(c.cycle==='fy28'?Object.keys(BRIEFING_UNITS):[])])];

@@ -1,3 +1,4 @@
+import {submissionHtml} from './budget-submission.mjs';
 import {startWalletComparison} from './wallet-comparison.mjs';
 import * as purposeView from './wallet-purpose-view.mjs';
 import {walletDateSummary} from './report-dates.mjs';
@@ -52,3 +53,5 @@ $('#wallet-clear').onclick=()=>{for(const id of ['#resource-control','#account-s
 $('#wallet-prev').onclick=()=>{page--;render();};$('#wallet-next').onclick=()=>{page++;render();};
 startWalletComparison();
 await load();
+// A forecast lookup is optional and must never block the published wallet.
+fetch('/.netlify/functions/unit-data?unit='+encodeURIComponent(scope)+'&action=submission',{credentials:'same-origin',cache:'no-store'}).then(r=>r.ok?r.json():null).then(value=>{if(value?.scope===scope&&value.submission)$('#wallet-charts').insertAdjacentHTML('beforebegin',submissionHtml(value.submission));}).catch(()=>{});

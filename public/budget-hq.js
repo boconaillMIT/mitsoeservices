@@ -1,3 +1,4 @@
+import {submissionHtml,submissionLineHtml} from '/budget-submission.mjs';
 import {workbookSourceHtml,sumRequestFunding} from '/budget-model.mjs';
 import {renderBudgetHistory,budgetComparison,bindBudgetPerspective} from '/budget-history.mjs';
 // SoE HQ → Budget: cycle roll-up and unit pages. Data: /.netlify/functions/budget-hq-data
@@ -35,6 +36,7 @@ function renderCycle(){
  const t=data.totals,f=t.request_funding||{},list=[...data.units].sort((a,b)=>(b.request_funding?.dean??-1)-(a.request_funding?.dean??-1)||a.label.localeCompare(b.label)),max=Math.max(1,...list.map(u=>u.request_funding?.dean||0));
  $('#bh-content').innerHTML=fundingCards(t)+
  '<p class="bv-status">Working requests by funding office. Source assumptions remain subject to review; these amounts are separate from saved HQ support decisions.</p>'+
+ (t.source_documents?.length?'<p class="bv-status">Latest submission revisions: '+t.source_documents.map(esc).join(', ')+'.</p>':'')+
  (t.source_workbooks?.length?'<p class="bv-status">Source: '+t.source_workbooks.map(esc).join(', ')+'.</p>':'')+
  '<section class="bv-panel"><div class="bh-head"><h2>Requests by unit</h2><a class="desktop" href="'+API+'?cycle='+cycle+'&format=csv">Download all lines (CSV)</a></div><p class="bv-status">Sorted by the amount asked of the Dean.</p><div class="bv-scroll"><table class="bv-table bh-units"><thead><tr><th>Unit</th><th style="width:18%">Dean ask</th><th class="n">Dean / SoE ask</th><th class="n">Provost ask</th><th class="n">SCC ask</th><th class="n">Unassigned</th><th class="n">Total ask</th><th class="n">Lines</th><th>HQ review</th></tr></thead><tbody>'+
  list.map(u=>{const x=u.request_funding||{};return '<tr class="'+(u.lines?'':'bh-none')+'"><td><a href="/soe-hq/budget/'+cycle+'/'+encodeURIComponent(u.key)+'">'+esc(u.label)+'</a></td><td>'+(u.lines?deanBar(x.dean,max):'<span class="bv-status">No requests</span>')+'</td><td class="n bh-dean">'+money(x.dean)+'</td><td class="n">'+money(x.provost)+'</td><td class="n">'+money(x.scc)+'</td><td class="n">'+money(x.unassigned)+'</td><td class="n">'+money(u.requested)+'</td><td class="n">'+u.lines+'</td><td>'+u.pending+' pending · '+u.supported_count+' supported</td></tr>';}).join('')+
@@ -67,7 +69,7 @@ function renderUnit(){
  ${data.restricted?'':'<section class="bv-panel"><h2>Wallet snapshot</h2><div class="bv-scroll" id="bh-wallet"></div></section>'}
  <section class="bv-panel bh-noprint"><div class="bh-head"><h2>Documents</h2><a class="desktop" href="${API}?cycle=${cycle}&amp;unit=${encodeURIComponent(unitKey)}&amp;format=csv">Download this department’s requests (CSV)</a></div><div id="bh-files"></div></section>
  <section class="bv-panel bh-noprint"><h2>Change history</h2><div id="bh-audit"></div></section>`;
- notes();files();lines();history();if(!data.restricted){position();wallet();}audit();
+ if(data.submission)$('#bh-files').closest('section').insertAdjacentHTML('beforebegin','<section class="bv-panel">'+submissionHtml(data.submission)+'</section>');notes();files();lines();history();if(!data.restricted){position();wallet();}audit();
  $('#bh-print').addEventListener('click',()=>window.print());
 }
 function chip(t){const s=!t.lines?['none','No requests']:t.pending===t.lines?['open','Not started']:t.pending?['review','In review · '+t.pending+' pending']:['done','All lines decided'];return `<span class="bh-chip ${s[0]}">${s[1]}</span>`;}
@@ -80,7 +82,7 @@ function lineRow(l){
  const amounts=`<td class="n bh-dean">${money(l.request_funding?.dean)}</td><td class="n">${money(l.request_funding?.provost)}</td><td class="n">${money(l.request_funding?.scc)}</td><td class="n"><strong>${money(l.requested)}</strong></td>`;
  const result=`<td class="n" data-out="supported">${l.decision==='pending'?'—':money(l.supported)}</td><td class="n" data-out="soe">${sup?money(l.soe):'—'}</td><td class="n" data-out="provost">${sup?money(l.provost):'—'}</td>`;
  if(!edit)return `<tr class="bh-${l.decision}"><td>${desc}${sourceContext}</td>${amounts}<td>${label(l)}${l.note?'<div class="bh-note">'+esc(l.note)+'</div>':''}</td>${result}</tr>`;
- return `<tr class="bh-${l.decision}" data-id="${esc(l.record_id)}"><td>${desc}</td>${amounts}
+ return `<tr class="bh-${l.decision}" data-id="${esc(l.record_id)}"><td>${desc}${submissionLineHtml(l.source)}</td>${amounts}
  <td class="bh-edit"><span class="bh-printonly">${label(l)}${l.note?' — '+esc(l.note):''}</span><select data-f="decision" aria-label="Decision">${['pending','decline','support'].map(d=>`<option value="${d}"${l.decision===d?' selected':''}>${{pending:'Pending',decline:'Decline',support:'Support'}[d]}</option>`).join('')}</select>
   <span class="bh-sup"${sup?'':' hidden'}><label>Level <select data-f="level">${LEVELS.map(v=>`<option value="${v}"${sup&&l.support_pct===v?' selected':''}>${v}%</option>`).join('')}<option value="custom"${custom?' selected':''}>Other…</option></select></label>
   <input data-f="custom" type="number" min="0.1" max="100" step="0.1" value="${custom?l.support_pct:''}" aria-label="Support %"${custom?'':' hidden'}>
@@ -116,7 +118,7 @@ async function save(tr){
  }catch(e){msg.textContent=e.message;msg.classList.add('error');}finally{btn.disabled=false;}
 }
 function recalc(ls){const s=k=>ls.reduce((a,l)=>a+(l[k]??0),0),c=d=>ls.filter(l=>l.decision===d).length;
- return {lines:ls.length,request_funding:sumRequestFunding(ls),unpriced:ls.filter(l=>l.requested===null).length,source_workbooks:[...new Set(ls.flatMap(l=>l.source?.sources?.map(s=>s.workbook)||[]))],requested:ls.length&&ls.every(l=>l.requested===null)?null:s('requested'),recurring:s('recurring'),onetime:s('onetime'),supported:s('supported'),soe:s('soe'),provost:s('provost'),declined_requested:ls.filter(l=>l.decision==='decline').reduce((a,l)=>a+(l.requested??0),0),pending:c('pending'),supported_count:c('support'),declined_count:c('decline')};}
+ return {lines:ls.length,request_funding:sumRequestFunding(ls),unpriced:ls.filter(l=>l.requested===null).length,source_workbooks:[...new Set(ls.flatMap(l=>l.source?.sources?.map(s=>s.workbook)||[]))],source_documents:[...new Set(ls.flatMap(l=>l.source?.submissions?.map(s=>s.document)||[]))],requested:ls.length&&ls.every(l=>l.requested===null)?null:s('requested'),recurring:s('recurring'),onetime:s('onetime'),supported:s('supported'),soe:s('soe'),provost:s('provost'),declined_requested:ls.filter(l=>l.decision==='decline').reduce((a,l)=>a+(l.requested??0),0),pending:c('pending'),supported_count:c('support'),declined_count:c('decline')};}
 
 function history(){
  const h=data.history;if(!h.length){$('#bh-history').innerHTML='<p class="bv-status">No earlier requests on record.</p>';return;}

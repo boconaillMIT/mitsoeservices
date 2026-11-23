@@ -1,3 +1,4 @@
+import {submissionHtml} from './budget-submission.mjs';
 import {RESOURCE_TYPES,points,combinedPoints,trendComparison} from './wallet-comparison-model.mjs';
 const money=v=>v===null||v===undefined?'Unavailable':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(v);
 const node=(tag,value,cls)=>{const el=document.createElement(tag);if(value!==undefined)el.textContent=value;if(cls)el.className=cls;return el;};
@@ -37,6 +38,7 @@ export function startWalletComparison(){
    const table=node('table',undefined,'comparison-history'),head=node('tr');for(const title of ['Year',entry.hq&&type!=='Pool A Payout'?'School controlled':basis,'Period / basis'])head.append(node('th',title));const thead=node('thead');thead.append(head);table.append(thead);const body=node('tbody');
    for(const p of series){const row=node('tr');row.append(node('td','FY'+p.year),node('td',money(p.amount)),node('td',(p.periods.filter(Boolean).join(', ')||'Published annual basis')+(p.projection?' · projected':'')+(p.walletZero?' · wallet summary total':p.blanks?' · '+p.blanks+' source blanks excluded':'')));body.append(row);}table.append(body);card.append(table);
    if(!entry.hq){const trend=trendComparison(headquarters,series);if(trend){card.append(node('p',`FY${trend.from}–FY${trend.to}: ${entry.label} ${percentage(trend.unit.percent)} (${money(trend.unit.dollars)}); HQ ${percentage(trend.hq.percent)} (${money(trend.hq.dollars)}).`));if(trend.stronger)card.append(node('p','Discuss: this resource is trending more positively than HQ. Ask about existing commitments, restrictions and capacity to contribute.','comparison-attention'));else card.append(node('p',trend.stronger===null?'A percentage comparison needs nonzero starting balances.':'This resource is not trending more positively than HQ over the matched period.'));}else card.append(node('p','At least two matching, non-projected fiscal years and reporting periods are needed to compare trends.'));}
+   if(!entry.hq&&mode==='individual'&&sources[0]?.submission)card.insertAdjacentHTML('beforeend',submissionHtml(sources[0].submission,{compact:true}));
    grid.append(card);
   }
   target.append(grid);if(mode==='individual'&&!entries.length)target.append(node('p','Select one or more academic units above.'));

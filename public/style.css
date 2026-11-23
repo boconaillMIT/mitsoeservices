@@ -44,3 +44,5 @@ a:not(.brand):not(.nav):not(.download):not(.desktop){color:#750014}.desktop{bord
 #wallet-comparison>label{display:inline-flex;flex-direction:column;gap:6px;margin:8px 18px 8px 0}#wallet-comparison select{padding:10px 12px;border:1px solid #8997a5;border-radius:6px;font:inherit;background:#fff;max-width:100%}.comparison-snapshot{display:grid;grid-template-columns:1fr auto;gap:8px;font-size:.9rem}.comparison-snapshot dd{margin:0;font-weight:700}.comparison-snapshot dt{margin:0}
 
 .wallet-unit-choices[hidden]{display:none}
+
+.submission-outlook{margin:18px 0;padding:18px;border:1px solid #d9dfd5;border-left:4px solid #8a1538;border-radius:8px;background:#fff}.submission-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:14px}.submission-facts dd{margin:5px 0;font-weight:700}.submission-table{width:100%;font-size:.9rem}.submission-table th,.submission-table td{padding:8px;text-align:right}.submission-table th:first-child,.submission-table td:first-child{text-align:left}
