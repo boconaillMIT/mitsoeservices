@@ -1,0 +1,13 @@
+import {commentStampText} from './rct-model.mjs';
+const h=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export function feedbackHighlights(text){
+ const segmenter=new Intl.Segmenter('en',{granularity:'sentence'}),points=String(text||'').split(/\n+/).flatMap(line=>[...segmenter.segment(line.replace(/^\s*(?:[-*•]|\d+[.)])\s+/,'').trim())].map(s=>s.segment.trim())).filter(Boolean),unique=[...new Set(points)];if(unique.length<=3)return unique;
+ const weight=t=>[...t.matchAll(/\b(?:recommend|support|concern|risk|condition|clarify|however|but|not|cannot|unless|funding|student|critical)\b/gi)].length;
+ const selected=new Set([0,...unique.map((text,index)=>({text,index})).slice(1).sort((a,b)=>weight(b.text)-weight(a.text)||a.index-b.index).slice(0,2).map(p=>p.index)]);return unique.filter((_,i)=>selected.has(i));
+}
+export function reviewBulletOverview(review){const groups=[];
+ for(const [i,v]of (review.reviewers||[]).entries()){if(!v.comments?.trim()&&!v.grade)continue;groups.push({label:v.name||'Reviewer '+(i+1),rating:v.grade||null,stamp:review.commentStamps?.reviewers?.[i]??null,anchor:'reviewer-comment-'+i,bullets:feedbackHighlights(v.comments)});}
+ if(review.departmentFeedback?.trim()||review.departmentSupported!==null&&review.departmentSupported!==undefined)groups.push({label:'Department',supported:review.departmentSupported??null,stamp:review.departmentStamp??null,anchor:'department-feedback',bullets:feedbackHighlights(review.departmentFeedback)});
+ if(review.notes?.trim())groups.push({label:'Shared HQ review',stamp:review.commentStamps?.notes??null,anchor:'shared-review-notes',bullets:feedbackHighlights(review.notes)});return groups;
+}
+export function renderBulletOverview(review,{unsaved=false}={}){const groups=reviewBulletOverview(review);return '<p class="field-help">Highlights from current reviewer and department feedback'+(unsaved?' — includes unsaved changes.':'.')+' These are selected extracts; use the full comments for complete context.</p>'+(groups.length?groups.map(g=>'<section class="bullet-source"><h4>'+h(g.label)+'</h4>'+(!unsaved&&g.stamp?'<p class="comment-stamp">'+h(commentStampText(g.stamp))+'</p>':'')+'<ul>'+(g.rating?'<li>Need priority rating: '+h(g.rating)+' / 5.</li>':'')+(Object.hasOwn(g,'supported')?'<li>Department support: '+(g.supported===null?'Unanswered':g.supported?'Yes':'No')+'.</li>':'')+g.bullets.map(text=>'<li>'+h(text)+'</li>').join('')+'</ul><a href="#'+g.anchor+'">Full '+h(g.label.toLowerCase())+' comments</a></section>').join(''):'<p>Add reviewer ratings, comments or department feedback to build this overview.</p>');}
