@@ -100,3 +100,5 @@ The tracker uses the Department funding box and other local boxes explicitly nam
 
 ## All-proposal summary
 The Proposal summary tab combines saved reviewer ratings, average/rank, HQ priority and decision, current requested and proposed amounts, named local commitments, calculated central shares and unallocated funding. It includes every proposal, preserves blanks and zero, links to each detailed review, and supports department, reviewer-rank and HQ-priority order. `?view=summary` opens the summary directly. The view is read-only and does not change saved reviews.
+
+Summary column headings sort in both directions. Average/rank sorts by the underlying saved average (lower is higher need), with unscored proposals last in both directions. Reviewer ratings sorts by scored-review count; funding plan sorts by entered local funding. Search, score status, HQ decision, maximum average and minimum-review filters apply only to the view. Ranks remain relative to the full proposal set; totals include only displayed rows.
