@@ -1,3 +1,4 @@
+import {createExportTemplateLoader} from './src/rct-export-template.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {zipSync,unzipSync,strToU8,strFromU8} from 'fflate';
 import {emptyReview,validateReview,fundingSummary,commitmentView,decisionState,centralThirds,fundingReview,fundingTotal,requestedTotal,sortProposals,departmentInfo} from './src/rct-model.mjs';
@@ -254,3 +255,6 @@ test('department feedback is tri-state and server-stamped independently of fundi
  for(const departmentSupported of ['Yes',0,{},[]])assert.throws(()=>validateReview({...emptyReview(),departmentSupported}));assert.equal(validateReview(emptyReview()).departmentSupported,null);assert.throws(()=>validateReview({...emptyReview(),departmentFeedback:'x'.repeat(6001)}));
  const details=strFromU8(unzipSync(exportReviews(template(),[{...row(),review:saved.row.review}]))['xl/worksheets/rct-review-details.xml']);assert.match(details,/Department support/);assert.match(details,/Do not support until/);assert.match(details,/actual_editor/);
 });
+
+
+test('completed Excel download uses the protected layout when Dropbox has changed and leaves reviews untouched',async()=>{const record={...row(),source:{...source,templateSha:'a'.repeat(64)},review:{...emptyReview(),requested:90,departmentSupported:true,departmentFeedback:'Example department response',notes:'Keep saved review notes'}},before=JSON.stringify(record);let remoteCalls=0;const handler=createRctHandler({authorize:auth,store:{list:async()=>[record]},template:createExportTemplateLoader({versionsFactory:()=>({list:async()=>[{id:'verified-layout'}],download:async()=>({bytes:template()})}),remote:async()=>{remoteCalls++;throw Error('Dropbox fingerprint changed');}})}),response=await handler(event('export'));assert.equal(response.statusCode,200);const zip=unzipSync(response.body),sheet=strFromU8(zip['xl/worksheets/sheet1.xml']);assert.match(sheet,/<c r="E8"[^>]*><v>90<\/v>/);assert.match(strFromU8(zip['xl/worksheets/rct-review-details.xml']),/Example department response/);assert.equal(remoteCalls,0);assert.equal(JSON.stringify(record),before);const file=await handler({...event('file'),queryStringParameters:{id:'FY27-RCT2|workbook',version:'verified-layout'}});assert.equal(file.statusCode,404);});

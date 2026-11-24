@@ -1,3 +1,4 @@
+import {loadExportTemplate} from './rct-export-template.mjs';
 import {REVIEWER_DIRECTORY} from '../public/rct-reviewers.mjs';
 import {invitationAttachment} from './rct-invitation-download.mjs';
 import {reviewerPage} from './rct-reviewer-pages.mjs';
@@ -5,13 +6,13 @@ import {audienceHtml} from './audience.cjs';
 import access from './access.cjs';
 import navigation from './navigation.cjs';
 import {createRctStore} from './rct-store.mjs';
-import {dropboxLink,loadDropboxTemplate} from './rct-dropbox.mjs';
+import {dropboxLink} from './rct-dropbox.mjs';
 import {validateReview,fundingReview} from './rct-model.mjs';
 import {createRctVersions,validatePdf} from './rct-versions.mjs';
 import {createRctAttachments,validateAttachment} from './rct-attachments.mjs';
 import {exportReviews} from './rct-export.mjs';
 const ROOT='/soe-hq/rct-review';
-export function createRctHandler({authorize=access.authorize,store=createRctStore(),template=loadDropboxTemplate,exporter=exportReviews,versions=createRctVersions(),attachments=createRctAttachments()}={}){return async event=>{
+export function createRctHandler({authorize=access.authorize,store=createRctStore(),template=loadExportTemplate,exporter=exportReviews,versions=createRctVersions(),attachments=createRctAttachments()}={}){return async event=>{
  const headers={...access.noStore,'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'},json=(status,data)=>({statusCode:status,headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(data)});
  const directory=()=>store.listReviewers?store.listReviewers():Promise.resolve(REVIEWER_DIRECTORY);
  const action=event.path?.startsWith(ROOT)?event.path.slice(ROOT.length).replace(/^\//,''):event.queryStringParameters?.action||'';
@@ -61,6 +62,6 @@ export function createRctHandler({authorize=access.authorize,store=createRctStor
   const exportRows=await Promise.all(records.map(async r=>({...r,finalVersionLabel:r.review.finalVersion==='original'?'Original proposal':r.review.finalVersion?(await versions.list(r.id)).find(v=>v.id===r.review.finalVersion)?.filename||'Uploaded revision (unavailable)':'Not selected'})));
   const bytes=exporter(await template(records[0].source),exportRows);
   return {statusCode:200,headers:{...headers,'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':'attachment; filename="FY27_RCT_Round_2_Review_SoE.xlsx"','Content-Length':String(bytes.length)},body:bytes};
- }catch{return json(503,{error:'Shared reviews or documents are unavailable. Please try again.'});}
+ }catch(error){console.error('RCT request failed:',action,error.code||error.name||'UNKNOWN');return json(503,{error:action==='export'?'The Excel download is temporarily unavailable. Your saved entries are unchanged. Please try again.':'Shared reviews or documents are unavailable. Please try again.'});}
 };}
 export const handler=createRctHandler();
