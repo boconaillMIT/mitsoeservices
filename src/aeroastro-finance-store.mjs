@@ -1,3 +1,4 @@
+import {mergePersonnelDetails} from './aeroastro-personnel-details.mjs';
 import {randomUUID} from 'node:crypto';
 import {qbRequest,seal,unseal,encryptionKey} from './nimbus-store.mjs';
 import {validateFinanceSource} from './aeroastro-finance-source.mjs';
@@ -11,6 +12,7 @@ export function createFinanceRepository({query=qbRequest,table=process.env.NIMBU
  return {
   async walletReference(){return walletAccountReference(await readWallet('aeroastro'));},
   async snapshot(kind){if(!['accounts','people'].includes(kind))throw Error('Invalid source');const found=await rows(`{6.EX.'${PREFIX+kind}:current'}AND{7.EX.'${scope}'}`);if(!found.length)return null;if(found.length!==1)throw Error('Ambiguous finance source');return validateFinanceSource(unpack(found[0]),kind,now());},
+  async peopleDetails(source){if(!source)return source;const found=await rows(`{6.EX.'${PREFIX}people-details:current'}AND{7.EX.'${scope}'}`);if(!found.length)return source;if(found.length!==1)throw Error('Ambiguous personnel details');return validateFinanceSource(mergePersonnelDetails(source,unpack(found[0])),'people',now());},
   async personKeys(source){
    if(source?.kind!=='people'||source.unit!==scope||!/^[a-f0-9]{64}$/.test(source.sourceHash||''))return new Map();
    const found=await rows(`{6.EX.'${PREFIX}person-identities:current'}AND{7.EX.'${scope}'}`);if(!found.length)return new Map();if(found.length!==1)throw Error('Ambiguous people identities');const value=unpack(found[0]);
