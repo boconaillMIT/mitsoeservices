@@ -1,7 +1,7 @@
 function mainNavigation({manage=false,schoolAdmin=false,schoolAccess=schoolAdmin,visibility={},active=''}={}){
- const aeroastroWorkspace=visibility.aeroastroWorkspace===true&&visibility.aeroastroFinance===true&&!schoolAccess;
+ const aeroastroWorkspace=visibility.aeroastroWorkspace===true&&visibility.aeroastroFinance===true&&visibility.features?.['aeroastro-finance']!==false&&!schoolAccess;
  const links=[['home','/?home=1','Services Home'],['my-authorizations','/my-authorizations','My authorizations']];
- if(aeroastroWorkspace){links.push(['aeroastro','/units/aeroastro/full','AeroAstro'],['aeroastro-accounts','/units/aeroastro/finance/accounts','Accounts & outlook','hq'],['aeroastro-people','/units/aeroastro/finance/people','People & appointments','hq']);if(!active)active=visibility.aeroastroView==='people'?'aeroastro-people':'aeroastro-accounts';}
+ if(aeroastroWorkspace){links.push(['aeroastro','/units/aeroastro/full','AeroAstro'],['aeroastro-accounts','/units/aeroastro/finance/accounts','Accounts & outlook','hq'],['aeroastro-people','/units/aeroastro/finance/people','People & appointments','hq']);if(!active)active=visibility.aeroastroView==='home'?'aeroastro':visibility.aeroastroView==='people'?'aeroastro-people':'aeroastro-accounts';}
  if(!visibility.compactUnits&&(visibility.academic??schoolAccess))links.push(['academic','/academic-units','Academic units']);
  if(!visibility.compactUnits&&(visibility.other??schoolAccess))links.push(['other','/other-units','Other units']);
  if(schoolAccess)links.push(['hq','/soe-hq','SoE HQ'],['budget','/soe-hq/budget','Budget','hq'],['budget-fy28','/soe-hq/budget/fy28','FY28 budget cycle','hq-2'] );
