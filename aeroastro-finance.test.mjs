@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {forecast,matching} from './public/aeroastro-finance-model.mjs';import {createFinanceHandler,FINANCE_SCOPE,walletAccounts} from './src/aeroastro-finance.mjs';import {createFinanceRepository} from './src/aeroastro-finance-store.mjs';import {seal} from './src/nimbus-store.mjs';import policy from './src/policy.cjs';import access from './src/access.cjs';import features from './src/features.cjs';import {authorizationSummary} from './src/authorization-summary.cjs';
+import test from 'node:test';import assert from 'node:assert/strict';import {forecast,matching} from './public/aeroastro-finance-model.mjs';import {createFinanceHandler,FINANCE_SCOPE} from './src/aeroastro-finance.mjs';import {createFinanceRepository} from './src/aeroastro-finance-store.mjs';import policy from './src/policy.cjs';import features from './src/features.cjs';import {authorizationSummary} from './src/authorization-summary.cjs';
 import {validateFinanceSource} from './src/aeroastro-finance-source.mjs';
 const fake={user:{kerberos:'example'},kerberos:'example',canWrite:true,navigation:{},policy:{data:{grants:[]}}};
 const event=(path,extra={})=>({path:'/units/aeroastro/finance/'+path,httpMethod:'GET',queryStringParameters:{},...extra});
@@ -7,6 +7,7 @@ test('AeroAstro finance is an explicit unit-specific grant, independent of unit 
  assert.equal(policy.effectiveRole(data,'example',FINANCE_SCOPE),'write');assert.equal(policy.effectiveRole(data,'example','meche'),null);assert.equal(policy.effectiveRole(data,'example','school'),null);assert.equal(policy.effectiveRole(data,'example','rct'),null);assert.equal(policy.effectiveRole(data,'example','aeroastro'),'read');
  assert.match(authorizationSummary(data,'example').find(r=>r.scope===FINANCE_SCOPE).href,/aeroastro\/finance/);
  assert.equal(policy.effectiveRole({grants:[{username:'example',scope:'aeroastro',role:'admin'}]},'example',FINANCE_SCOPE),null);
+ assert.equal(policy.effectiveRole({grants:[{username:'example',scope:'school',role:'write'}]},'example',FINANCE_SCOPE),null);assert.equal(policy.effectiveRole({grants:[{username:'example',scope:'school',role:'admin'}]},'example',FINANCE_SCOPE),'admin');
  assert.equal(features.featureFor(event('accounts')),'account-review');
 });
 test('All finance endpoints check scope before loading source or notes; unsupported paths and mutations fail',async()=>{
@@ -39,8 +40,8 @@ test('Account notes require a trusted account and same-origin JSON; authors and 
  const request=body=>event('notes',{httpMethod:'POST',headers:{Origin:'https://example.test','Content-Type':'application/json'},body:JSON.stringify({account:'9900001',text:'Source statement',source:'Example email',operationId:'11111111-1111-4111-8111-111111111111',...body})});
  try{assert.equal((await h(request({by:'someone-else'}))).statusCode,400);assert.equal((await h(request({account:'9900002'}))).statusCode,404);assert.equal((await h({...request({}),headers:{Origin:'https://evil.example','Content-Type':'application/json'}})).statusCode,403);assert.equal((await h(request({}))).statusCode,200);assert.equal(writes.length,1);assert.equal(writes[0][1],'example');}finally{if(old===undefined)delete process.env.APP_ORIGIN;else process.env.APP_ORIGIN=old;}
 });
-test('No current account source returns a clearly identified inventory without fabricated financials',async()=>{
- const h=createFinanceHandler({authorize:async()=>fake,accounts:async()=>[{account:'9900001',name:'Example',currentBalance:null,ytdExpenses:null}],repository:()=>({snapshot:async()=>null,notes:async()=>[]})});const r=await h(event('data'));const d=JSON.parse(r.body);assert.equal(r.statusCode,200);assert.equal(d.currentAvailable,false);assert.equal(d.source,null);assert.equal(d.rows[0].currentBalance,null);
+test('No current account source exposes no unverified accounts and no fabricated financials',async()=>{
+ const h=createFinanceHandler({authorize:async()=>fake,repository:()=>({snapshot:async()=>null,notes:async()=>[]})});const r=await h(event('data'));const d=JSON.parse(r.body);assert.equal(r.statusCode,200);assert.equal(d.currentAvailable,false);assert.equal(d.canNote,false);assert.equal(d.source,null);assert.deepEqual(d.rows,[]);
 });
 test('Encrypted note records preserve concurrent append operations and provide idempotent retry',async()=>{
  const entries=[],key=Buffer.alloc(32,1),table='bexample';let addCount=0;const query=async(p,b)=>{const id=/\{6\.EX\.'([^']+)'\}/.exec(b.where)?.[1];const found=id?entries.filter(r=>r['6'].value===id):entries;return {data:found,metadata:{totalRecords:found.length}};};

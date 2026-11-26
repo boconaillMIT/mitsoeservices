@@ -17,7 +17,7 @@ function validUsername(v){return typeof v==='string'&&normalizeLogin(v)===v;}
 function initialPolicy(){return {schema:2,users:[...ADMINS],grants:ADMINS.map(username=>({username,scope:'school',role:'admin'})),audit:[]};}
 function effectiveRole(data,username,scope='school',audience='full'){
  if(!Array.isArray(data?.grants)||!Object.hasOwn(SCOPES,scope))return null;
- return data.grants.filter(g=>g.username===username&&(g.scope===scope||g.scope==='school'&&(!['rct','dr'].includes(scope)||g.role==='admin'))&&(audience==='limited'||!g.role.startsWith('limited_'))).reduce((best,g)=>(CAPABILITIES[g.role]||0)>(CAPABILITIES[best]||0)||CAPABILITIES[g.role]===CAPABILITIES[best]&&(ROLES[g.role]||0)>(ROLES[best]||0)?g.role:best,null);
+ return data.grants.filter(g=>g.username===username&&(g.scope===scope||g.scope==='school'&&(!['rct','dr','finance:aeroastro'].includes(scope)||g.role==='admin'))&&(audience==='limited'||!g.role.startsWith('limited_'))).reduce((best,g)=>(CAPABILITIES[g.role]||0)>(CAPABILITIES[best]||0)||CAPABILITIES[g.role]===CAPABILITIES[best]&&(ROLES[g.role]||0)>(ROLES[best]||0)?g.role:best,null);
 }
 function managedScopes(data,actor){return effectiveRole(data,actor,'school')==='admin'?Object.keys(SCOPES):['rct','dr',...Object.keys(UNITS)].filter(scope=>effectiveRole(data,actor,scope)==='admin');}
 function validatePolicy(data){

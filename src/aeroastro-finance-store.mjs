@@ -1,9 +1,9 @@
 import {randomUUID} from 'node:crypto';
-import {qbRequest,createSnapshotRepository,seal,unseal,encryptionKey} from './nimbus-store.mjs';
+import {qbRequest,seal,unseal,encryptionKey} from './nimbus-store.mjs';
 import {validateFinanceSource} from './aeroastro-finance-source.mjs';
 const scope='aeroastro',PREFIX='aeroastro-finance:',UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const xml=s=>String(s).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
-export function createFinanceRepository({query=qbRequest,table=process.env.NIMBUS_SNAPSHOTS_TABLE,key=encryptionKey,snapshots=()=>createSnapshotRepository(),now=()=>new Date(),uuid=randomUUID,add}={}){
+export function createFinanceRepository({query=qbRequest,table=process.env.NIMBUS_SNAPSHOTS_TABLE,key=encryptionKey,now=()=>new Date(),uuid=randomUUID,add}={}){
  const check=()=>{if(!/^b[a-z0-9]+$/.test(table||''))throw Error('Finance storage unavailable');};
  async function rows(where){check();const all=[];let expected;for(let skip=0;skip<5000;skip+=500){const r=await query('records/query',{from:table,select:[3,6,7,8],where,sortBy:[{fieldId:3,order:'ASC'}],options:{top:500,skip}});if(!Array.isArray(r.data)||!Number.isSafeInteger(r.metadata?.totalRecords)||expected!==undefined&&expected!==r.metadata.totalRecords)throw Error('Incomplete finance data');expected=r.metadata.totalRecords;all.push(...r.data);if(all.length===expected)return all;if(!r.data.length)break;}throw Error('Incomplete finance data');}
  function unpack(r){const id=r['6']?.value;if(r['7']?.value!==scope||typeof id!=='string'||!id.startsWith(PREFIX))throw Error('Finance scope mismatch');return unseal(r['8']?.value,key(),scope+':'+id);}
