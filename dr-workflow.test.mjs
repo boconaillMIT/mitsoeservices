@@ -31,6 +31,11 @@ test('identity, directory department, approvals and audit attribution cannot be 
  const record=fixture({status:'draft'}),saved=apply(record,{action:'save',request:{...record.request,requesterName:'Spoof',requesterEmail:'spoof@example.com',department:'Spoof',correspondence:'Overwrite'},finance:{by:'spoof'},history:[]},owner);
  assert.equal(saved.request.requesterName,'Test Student');assert.equal(saved.request.requesterEmail,'studentx@mit.edu');assert.equal(saved.request.department,'Test department');assert.equal(saved.request.correspondence,'Internal email text');assert.equal(saved.finance,null);assert.equal(saved.history[0].by,'studentx');
 });
+test('an authenticated requester can complete an incomplete staff-entered inquiry',()=>{
+ const record=fixture({status:'inquiry',departmentSource:'self-reported'});record.request.requesterName='';record.request.department='';
+ const saved=apply(record,{action:'save',request:{...record.request,requesterName:'Spoof',department:'Spoof'}},{...owner,identity:{name:'Verified Student',email:'studentx@mit.edu',department:'Verified department'}});
+ assert.equal(saved.request.requesterName,'Verified Student');assert.equal(saved.request.department,'Verified department');assert.equal(saved.departmentSource,'directory');assert.deepEqual(submissionErrors(saved),[]);assert.equal(apply(saved,{action:'submit'},owner).status,'submitted');
+});
 test('requester response and reopening invalidate approvals; history keeps prior approvals',()=>{
  const valid=apply(fixture(),{action:'validity'}),info=apply(valid,{action:'information',message:'Please revise the budget.'},second);assert.equal(info.validity,null);assert.equal(info.finance,null);assert.equal(info.status,'information');assert.equal(info.history[0].snapshot.validity.by,'reviewera');
  const response=apply(info,{action:'save',request:{...info.request,title:'Revised workshop'}},owner),submitted=apply(response,{action:'submit'},owner);assert.equal(submitted.status,'submitted');assert.equal(submitted.validity,null);

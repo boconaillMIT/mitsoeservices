@@ -14,7 +14,7 @@ export function createDrHandler({authorize=access.authorize,store=createDrStore(
  const auth=await authorize(event,{scope:'dr-requester'});
  if(!auth.user){if(auth.statusCode===401&&action==='page')return {statusCode:302,headers:{...access.noStore,Location:'/.netlify/functions/auth-login?returnTo=%2Fdonation-requests'},body:''};return auth;}
  const kerberos=policy.normalizeLogin(auth.user.kerberos);if(!kerberos)return json(403,{error:'A valid MIT Kerberos login is required.'});
- const role=policy.effectiveRole(auth.policy.data,kerberos,'dr'),staff=Boolean(role),actor={kerberos,canWrite:(policy.CAPABILITIES[role]||0)>=2};
+ const role=policy.effectiveRole(auth.policy.data,kerberos,'dr'),staff=Boolean(role),actor={kerberos,canWrite:(policy.CAPABILITIES[role]||0)>=2,identity:{name:auth.user.name||kerberos,email:auth.user.email||kerberos+'@mit.edu',department:auth.user.department||''}};
  if(auth.testView)return json(403,{error:'Donation Requests is unavailable in the restricted unit test view.'});
  if(action==='page')return {statusCode:200,headers:{...access.noStore,'Content-Type':'text/html; charset=utf-8'},body:drPage(auth)};
  const scope=staff?{}:{owner:kerberos};

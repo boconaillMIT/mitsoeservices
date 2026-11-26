@@ -49,7 +49,7 @@ export function applyAction(record,command,actor,{uuid,now,attachment}={}){
   if(!EDITABLE.includes(record.status))fail('Reopen this request before changing its intake details.',409);
   const request=cleanRequest(command.request);
   // Identity is supplied by the authenticated session, never by requester input.
-  if(!staff){request.requesterName=record.request.requesterName;request.requesterEmail=record.request.requesterEmail;request.correspondence=record.request.correspondence;if(record.departmentSource==='directory')request.department=record.request.department;}
+  if(!staff){request.requesterName=actor.identity?.name||record.request.requesterName;request.requesterEmail=actor.identity?.email||record.request.requesterEmail;request.correspondence=record.request.correspondence;if(actor.identity?.department){request.department=actor.identity.department;next.departmentSource='directory';}else if(record.departmentSource==='directory')request.department=record.request.department;}
   next.request=request;
   if(record.validity||record.finance)reset();
   break;
