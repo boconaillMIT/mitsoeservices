@@ -1,7 +1,7 @@
 // User-confirmed directory names; informational only, never used for permissions.
 // Display date requested by the user: 10/26/26.
 module.exports=Object.freeze({
-  "aeroastro": "TBD",
+  "aeroastro": "Tara Iovanna",
   "be": "Roni (Rolanda) Dudley-Cowans",
   "cheme": "Barbara Travers",
   "cee": "Jarina Shrestha",

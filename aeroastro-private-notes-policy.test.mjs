@@ -1,0 +1,9 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {privateNotesAccess} from './src/aeroastro-private-notes-policy.mjs';
+const auth=(username,grants,canWrite=true)=>({user:{kerberos:username},kerberos:username,scope:'finance:aeroastro',canWrite,policy:{data:{grants}}});
+const grant=(username,scope='finance:aeroastro',role='write')=>({username,scope,role});
+test('Tara can access her private notes only with her current finance permission',()=>{assert.deepEqual(privateNotesAccess(auth('tara1013',[grant('tara1013')])),{canRead:true,canWrite:true});});
+test('School administrators and other finance writers cannot read Tara private notes',()=>{for(const user of ['oconaill','example']){assert.deepEqual(privateNotesAccess(auth(user,[grant(user,'school','admin'),grant(user)])),{canRead:false,canWrite:false});}});
+test('An administrator view-as label cannot impersonate the private-note owner',()=>{const a=auth('oconaill',[grant('tara1013')]);a.kerberos='tara1013';assert.deepEqual(privateNotesAccess(a),{canRead:false,canWrite:false});});
+test('AeroAstro unit permission alone and revoked finance grants do not give private-note access',()=>{assert.deepEqual(privateNotesAccess(auth('tara1013',[grant('tara1013','aeroastro','admin')])),{canRead:false,canWrite:false});assert.deepEqual(privateNotesAccess(auth('tara1013',[])),{canRead:false,canWrite:false});});
+test('Read-only finance access allows Tara to read but not append private notes',()=>{assert.deepEqual(privateNotesAccess(auth('tara1013',[grant('tara1013','finance:aeroastro','read')],false)),{canRead:true,canWrite:false});});
+test('Anonymous and wrong-scope requests fail closed',()=>{assert.deepEqual(privateNotesAccess(null),{canRead:false,canWrite:false});const a=auth('tara1013',[grant('tara1013')]);a.scope='school';assert.deepEqual(privateNotesAccess(a),{canRead:false,canWrite:false});});
