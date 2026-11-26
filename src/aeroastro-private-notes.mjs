@@ -1,0 +1,16 @@
+import access from './access.cjs';import {privateNotesAccess} from './aeroastro-private-notes-policy.mjs';import {createFinanceRepository} from './aeroastro-finance-store.mjs';import {createPrivateNotesRepository} from './aeroastro-private-store.mjs';import {PERSON_KEY,exactKeys,validateVault,validateEncryptedNote} from '../public/aeroastro-private-schema.mjs';
+const reply=(status,data)=>({statusCode:status,headers:{...access.noStore,'Content-Type':'application/json'},body:JSON.stringify(data)});
+export function createPrivateNotesHandler({authorize=access.authorize,finance=()=>createFinanceRepository(),repository=()=>createPrivateNotesRepository()}={}){return async event=>{
+ if(!['GET','POST'].includes(event.httpMethod))return reply(405,{error:'GET or POST required.'});
+ const auth=await authorize(event,{scope:'finance:aeroastro',minimum:event.httpMethod==='POST'?'write':'read',audience:'full'});if(!auth.user)return auth;const rights=privateNotesAccess(auth);if(!rights.canRead||event.httpMethod==='POST'&&!rights.canWrite)return reply(403,{error:'Private person notes are available only to their authorized owner.'});
+ let body;if(event.httpMethod==='POST'){const h=Object.fromEntries(Object.entries(event.headers||{}).map(([k,v])=>[k.toLowerCase(),v]));if(!process.env.APP_ORIGIN||h.origin!==process.env.APP_ORIGIN||h['content-type']?.split(';')[0]!=='application/json')return reply(403,{error:'Same-origin JSON required.'});if(typeof event.body!=='string'||event.body.length>65000)return reply(413,{error:'Encrypted note is too large.'});try{body=JSON.parse(event.body);}catch{return reply(400,{error:'Invalid encrypted request.'});}}
+ try{const r=repository();if(event.httpMethod==='GET'&&event.queryStringParameters?.op==='vault')return reply(200,{vault:await r.vault(),canWrite:rights.canWrite});
+  if(event.httpMethod==='POST'&&body?.action==='create-vault'){
+   if(!exactKeys(body,['action','vault']))return reply(400,{error:'Only encrypted notebook configuration is accepted.'});let vault;try{vault=validateVault(body.vault);}catch{return reply(400,{error:'Invalid encrypted notebook configuration.'});}const saved=await r.create(vault);return reply(saved.status,saved);
+  }
+  const person=event.httpMethod==='GET'?event.queryStringParameters?.person:body?.personKey;if(!PERSON_KEY.test(person||''))return reply(400,{error:'Choose a verified person.'});
+  const f=finance(),source=await f.snapshot('people'),keys=await f.personKeys(source);if(![...keys.values()].includes(person))return reply(409,{error:'This person’s identity could not be verified against the current roster. Existing notes are preserved.'});
+  if(event.httpMethod==='GET'){if(event.queryStringParameters?.op!=='notes')return reply(400,{error:'Choose a private-note operation.'});return reply(200,{personKey:person,notes:await r.list(person)});}
+  if(!exactKeys(body,['action','personKey','note'])||body.action!=='append')return reply(400,{error:'Only encrypted private notes are accepted.'});let note;try{note=validateEncryptedNote(body.note);}catch{return reply(400,{error:'Only a valid encrypted private note is accepted.'});}const saved=await r.append(person,note);return reply(saved.status,saved);
+ }catch{return reply(503,{error:'The encrypted notebook could not be verified or saved. Existing notes have not been replaced. Please retry.'});}
+};}

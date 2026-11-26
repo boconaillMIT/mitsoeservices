@@ -9,6 +9,12 @@ export function createFinanceRepository({query=qbRequest,table=process.env.NIMBU
  function unpack(r){const id=r['6']?.value;if(r['7']?.value!==scope||typeof id!=='string'||!id.startsWith(PREFIX))throw Error('Finance scope mismatch');return unseal(r['8']?.value,key(),scope+':'+id);}
  return {
   async snapshot(kind){if(!['accounts','people'].includes(kind))throw Error('Invalid source');const found=await rows(`{6.EX.'${PREFIX+kind}:current'}AND{7.EX.'${scope}'}`);if(!found.length)return null;if(found.length!==1)throw Error('Ambiguous finance source');return validateFinanceSource(unpack(found[0]),kind,now());},
+  async personKeys(source){
+   if(source?.kind!=='people'||source.unit!==scope||!/^[a-f0-9]{64}$/.test(source.sourceHash||''))return new Map();
+   const found=await rows(`{6.EX.'${PREFIX}person-identities:current'}AND{7.EX.'${scope}'}`);if(!found.length)return new Map();if(found.length!==1)throw Error('Ambiguous people identities');const value=unpack(found[0]);
+   if(value.schema!==1||value.unit!==scope||value.sourceHash!==source.sourceHash||!Array.isArray(value.rows)||value.rows.length!==source.rows.length)return new Map();
+   const allowed=new Set(source.rows.map(r=>r.id)),keys=new Map();for(const r of value.rows){if(!allowed.has(r.appointmentId)||keys.has(r.appointmentId)||!/^[a-f0-9]{64}$/.test(r.personKey||''))throw Error('People identity mismatch');keys.set(r.appointmentId,r.personKey);}return keys;
+  },
   async notes(){const found=await rows(`{7.EX.'${scope}'}AND{6.CT.'${PREFIX}note:'}`);return found.map(unpack).map(n=>{if(n.unit!==scope||!/^\d{7}$/.test(n.account||'')||!UUID.test(n.id||'')||typeof n.text!=='string'||typeof n.by!=='string'||!Number.isFinite(Date.parse(n.at)))throw Error('Invalid finance note');return n;}).sort((a,b)=>a.at.localeCompare(b.at));},
   async append(account,actor,body){check();const id=body.operationId||uuid();if(!UUID.test(id))throw Error('Invalid note ID');const recordKey=PREFIX+'note:'+id;const previous=await rows(`{6.EX.'${recordKey}'}AND{7.EX.'${scope}'}`);
    if(previous.length){const note=unpack(previous[0]);return note.account===account&&note.by===actor&&note.text===body.text&&note.source===(body.source||'')?{status:200,note}:{status:409,error:'This note ID was already used.'};}
