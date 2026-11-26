@@ -8,7 +8,7 @@ test('AeroAstro finance is an explicit unit-specific grant, independent of unit 
  assert.match(authorizationSummary(data,'example').find(r=>r.scope===FINANCE_SCOPE).href,/aeroastro\/finance/);
  assert.equal(policy.effectiveRole({grants:[{username:'example',scope:'aeroastro',role:'admin'}]},'example',FINANCE_SCOPE),null);
  assert.equal(policy.effectiveRole({grants:[{username:'example',scope:'school',role:'write'}]},'example',FINANCE_SCOPE),null);assert.equal(policy.effectiveRole({grants:[{username:'example',scope:'school',role:'admin'}]},'example',FINANCE_SCOPE),'admin');
- assert.equal(features.featureFor(event('accounts')),'account-review');
+ assert.equal(features.featureFor(event('accounts')),'aeroastro-finance');
 });
 test('All finance endpoints check scope before loading source or notes; unsupported paths and mutations fail',async()=>{
  let reads=0;const h=createFinanceHandler({authorize:async(e,options)=>{assert.equal(options.scope,FINANCE_SCOPE);return {statusCode:403,body:'Denied'};},repository:()=>{reads++;throw Error();}});
