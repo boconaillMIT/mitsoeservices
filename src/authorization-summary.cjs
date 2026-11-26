@@ -8,7 +8,7 @@ function authorizationSummary(data,login,scopes=Object.keys(policy.SCOPES)){
   const full=policy.effectiveRole(data,username,scope),role=full||policy.effectiveRole(data,username,scope,'limited');if(!role)return [];
   const direct=data.grants.find(g=>g.username===username&&g.scope===scope),school=data.grants.find(g=>g.username===username&&g.scope==='school');
   const inherited=scope!=='school'&&school&&policy.effectiveRole({grants:[school]},username,scope,full?'full':'limited')===role;
-  const href=scope==='school'?'/soe-hq':scope==='rct'?'/soe-hq/rct-review':scope==='dr'?'/donation-requests':scope.startsWith('budget:')?'/soe-hq/budget/fy28/'+scope.slice(7):units.unitPath(scope,full?'full':'limited');
+  const href=scope==='school'?'/soe-hq':scope==='rct'?'/soe-hq/rct-review':scope==='dr'?'/donation-requests':scope==='finance:aeroastro'?'/units/aeroastro/finance/accounts':scope.startsWith('budget:')?'/soe-hq/budget/fy28/'+scope.slice(7):units.unitPath(scope,full?'full':'limited');
   const label=scope.startsWith('budget:')?(role==='admin'?'Administrator (school-wide)':role==='write'?'Read & edit (school-wide access)':'Budget viewer (read only)'):policy.roleLabels(scope)[role]||role;
   return [{scope,name:policy.SCOPES[scope],role,label,href,source:inherited?'School-wide access':'Direct permission',directRole:direct?.role||null}];
  });
