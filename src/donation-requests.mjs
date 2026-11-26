@@ -8,15 +8,15 @@ import {validateAttachment,ATTACHMENT_TYPES} from './rct-attachments.mjs';
 const headers={...access.noStore,'Content-Type':'application/json; charset=utf-8','X-Content-Type-Options':'nosniff'};
 const json=(statusCode,data)=>({statusCode,headers,body:JSON.stringify(data)});
 export function createDrHandler({authorize=access.authorize,store=createDrStore(),uuid=randomUUID,now=()=>new Date().toISOString(),origin=()=>process.env.APP_ORIGIN}={}){return async event=>{
- const path=event.path||'',action=path.startsWith('/donation-requests/')?path.slice('/donation-requests/'.length):event.queryStringParameters?.action||'page';
+ const path=event.path||'',route=path.startsWith('/donation-requests/')?path.slice('/donation-requests/'.length):event.queryStringParameters?.action||'page',requesterView=route==='request'||event.queryStringParameters?.view==='requester',action=route==='request'?'page':route;
  if(!['page','data','attachment'].includes(action))return json(404,{error:'Page not found.'});
  if(!['GET','POST'].includes(event.httpMethod)||event.httpMethod==='POST'&&action!=='data')return {...json(405,{error:'Method not allowed.'}),headers:{...headers,Allow:action==='data'?'GET, POST':'GET'}};
  const auth=await authorize(event,{scope:'dr-requester'});
- if(!auth.user){if(auth.statusCode===401&&action==='page')return {statusCode:302,headers:{...access.noStore,Location:'/.netlify/functions/auth-login?returnTo=%2Fdonation-requests'},body:''};return auth;}
+ if(!auth.user){if(auth.statusCode===401&&action==='page')return {statusCode:302,headers:{...access.noStore,Location:'/.netlify/functions/auth-login?returnTo='+encodeURIComponent(requesterView?'/donation-requests/request':'/donation-requests')},body:''};return auth;}
  const kerberos=policy.normalizeLogin(auth.user.kerberos);if(!kerberos)return json(403,{error:'A valid MIT Kerberos login is required.'});
- const role=policy.effectiveRole(auth.policy.data,kerberos,'dr'),staff=Boolean(role),actor={kerberos,canWrite:(policy.CAPABILITIES[role]||0)>=2,identity:{name:auth.user.name||kerberos,email:auth.user.email||kerberos+'@mit.edu',department:auth.user.department||''}};
+ const role=policy.effectiveRole(auth.policy.data,kerberos,'dr'),staff=!requesterView&&Boolean(role),actor={kerberos,canWrite:staff&&(policy.CAPABILITIES[role]||0)>=2,identity:{name:auth.user.name||kerberos,email:auth.user.email||kerberos+'@mit.edu',department:auth.user.department||''}};
  if(auth.testView)return json(403,{error:'Donation Requests is unavailable in the restricted unit test view.'});
- if(action==='page')return {statusCode:200,headers:{...access.noStore,'Content-Type':'text/html; charset=utf-8'},body:drPage(auth)};
+ if(action==='page')return {statusCode:200,headers:{...access.noStore,'Content-Type':'text/html; charset=utf-8'},body:drPage({...auth,drStaff:staff})};
  const scope=staff?{}:{owner:kerberos};
  const allowed=record=>record&&(staff||record.owner===kerberos);
  try{
@@ -38,7 +38,7 @@ export function createDrHandler({authorize=access.authorize,store=createDrStore(
   let command;try{command=JSON.parse(event.body);}catch{return json(400,{error:'Invalid request.'});}
   if(!command||typeof command!=='object'||Array.isArray(command)||!ID.test(command.id||''))fail('Invalid request identifier.');
   if(command.action==='create'){
-   const existing=await store.get(command.id);if(existing){if(existing.createdBy!==kerberos)return json(409,{error:'Request identifier already exists.'});return json(200,{record:visibleRecord(existing,staff)});}
+   const existing=await store.get(command.id);if(existing){if(!allowed(existing))return json(404,{error:'Request not found.'});if(existing.createdBy!==kerberos)return json(409,{error:'Request identifier already exists.'});return json(200,{record:visibleRecord(existing,staff)});}
    let owner=kerberos;if(command.owner){if(!actor.canWrite)fail('Only DR writers may enter requests on behalf of others.',403);owner=policy.normalizeLogin(command.owner);if(!owner)fail('Enter the requester’s MIT Kerberos login.');}
    const own=owner===kerberos,request=cleanRequest({requesterName:own?auth.user.name||kerberos:'',requesterEmail:own?auth.user.email||kerberos+'@mit.edu':owner+'@mit.edu',department:own?auth.user.department||'':''}),at=now();
    const record={id:command.id,revision:uuid(),owner,createdBy:kerberos,departmentSource:own&&auth.user.department?'directory':'self-reported',organizationId:null,status:own?'draft':'inquiry',request,validity:null,finance:null,files:[],history:[{action:'create',by:kerberos,at,status:own?'draft':'inquiry',message:own?'':'Entered on behalf of '+owner}],createdAt:at,updatedAt:at};

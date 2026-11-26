@@ -1,6 +1,12 @@
 # Donation Requests — Phase 1
 
 `/donation-requests` is linked from Services Home and the main navigation beside RCT.
+Send applicants `/donation-requests/request`. This always opens a requester-only
+view, including for staff previewing the link. It has no review search, filters,
+staff navigation or staff actions. Its API requests explicitly use `view=requester`,
+which enforces owner-only reads, redaction and requester-only writes on the server.
+Ordinary MIT users also receive this limited view at the main DR address; only
+current DR staff see the review queue and search there.
 All requesters use the existing MIT Okta session and a valid Kerberos principal.
 No other site grant is needed to submit or track the requester's own records.
 

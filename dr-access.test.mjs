@@ -55,3 +55,29 @@ test('attachment endpoints recheck membership and detect changed file bytes',asy
  let result=await h.handler(event('attachment',null,{queryStringParameters:{id:r.id,file}}));assert.equal(result.statusCode,200);assert.match(result.headers['Content-Disposition'],/attachment/);
  r.files[0].kind='correspondence';assert.equal((await h.handler(event('attachment',null,{queryStringParameters:{id:r.id,file}}))).statusCode,404);r.files[0].kind='budget';h.store.download=async()=>({filename:'test.pdf',content:Buffer.from('%PDF-1.7 changed').toString('base64')});assert.equal((await h.handler(event('attachment',null,{queryStringParameters:{id:r.id,file}}))).statusCode,503);
 });
+test('ordinary requesters receive no review search or staff navigation on either entry page',async()=>{
+ const h=harness();for(const route of ['page','request']){const result=await h.handler(event(route));assert.equal(result.statusCode,200);assert.match(result.body,/data-dr-view="requester"/);for(const control of ['id="dr-search"','id="dr-filter"','id="dr-year"','id="dr-dept"','href="\/my-authorizations"','href="\/soe-hq"'])assert(!result.body.includes(control),control);assert.match(result.body,/Only requests belonging to your MIT login/);}
+});
+test('staff review retains search and offers a dedicated requester link',async()=>{
+ const h=harness({login:'reviewer',grants:[{username:'reviewer',scope:'dr',role:'write'}]}),result=await h.handler(event('page'));
+ assert.match(result.body,/data-dr-view="review"/);assert.match(result.body,/id="dr-search"/);assert.match(result.body,/href="\/donation-requests\/request"/);
+ const limited=await h.handler(event('request'));assert.match(limited.body,/data-dr-view="requester"/);assert(!limited.body.includes('id="dr-search"'));assert(!limited.body.includes('href="/my-authorizations"'));
+});
+test('requester mode limits even a DR writer to owned requests and redacts staff details',async()=>{
+ const own=record(),other=record();own.owner='reviewer';own.finance={amount:10,costObject:'SECRET-COST',by:'another',at};own.request.correspondence='SECRET-CORRESPONDENCE';own.history=[{action:'note',message:'SECRET-NOTE',internal:true}];
+ const h=harness({login:'reviewer',grants:[{username:'reviewer',scope:'dr',role:'write'}],records:[own,other]}),queryStringParameters={view:'requester'},limited=JSON.parse((await h.handler(event('data',null,{queryStringParameters}))).body);
+ assert.equal(limited.staff,false);assert.equal(limited.canWrite,false);assert.equal(limited.records.length,1);assert.equal(limited.records[0].id,own.id);assert.deepEqual(h.scope,{owner:'reviewer'});
+ for(const secret of ['SECRET-COST','SECRET-CORRESPONDENCE','SECRET-NOTE'])assert(!JSON.stringify(limited).includes(secret));
+ assert.equal((await h.handler(event('data',{action:'note',id:own.id,revision:own.revision,message:'Private'},{queryStringParameters}))).statusCode,403);
+ assert.equal((await h.handler(event('data',{action:'create',id:randomUUID(),owner:'studentx'},{queryStringParameters}))).statusCode,403);
+ assert.equal((await h.handler(event('attachment',null,{queryStringParameters:{...queryStringParameters,id:other.id,file:randomUUID()}}))).statusCode,404);
+ assert.equal(JSON.parse((await h.handler(event('data'))).body).records.length,2);
+});
+test('the shareable requester link survives the MIT sign-in redirect',async()=>{
+ const handler=createDrHandler({authorize:async()=>({statusCode:401,body:'MIT sign-in required.'})}),result=await handler(event('request'));
+ assert.equal(result.statusCode,302);assert.equal(new URL(result.headers.Location,origin).searchParams.get('returnTo'),'/donation-requests/request');
+});
+test('a former staff creator cannot retrieve someone else’s request through a creation retry',async()=>{
+ const prior=record();prior.createdBy='formerwriter';const h=harness({login:'formerwriter',records:[prior]});
+ assert.equal((await h.handler(event('data',{action:'create',id:prior.id}))).statusCode,404);
+});
