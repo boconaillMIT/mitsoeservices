@@ -18,7 +18,8 @@ async function authorize(event, {reader = auth.readSession, load = policy.loadPo
   const actualPolicy=current,view=testView.restrict(event,user,current,policy);
   if(view.denied)return {statusCode:403,headers:noStore,body:'This test view is not available to this login.'};
   current=view.current;
-  const role=scope==='any' ? Object.keys(policy.SCOPES).map(s=>policy.effectiveRole(current.data,kerberos,s,audience)).reduce((a,b)=>(policy.ROLES[b]||0)>(policy.ROLES[a]||0)?b:a,null) : policy.effectiveRole(current.data,kerberos,scope,audience);
+  // dr-requester only admits signed-in users to self-service routes; it is never a staff grant.
+  const role=scope==='dr-requester' ? 'read' : scope==='any' ? Object.keys(policy.SCOPES).map(s=>policy.effectiveRole(current.data,kerberos,s,audience)).reduce((a,b)=>(policy.ROLES[b]||0)>(policy.ROLES[a]||0)?b:a,null) : policy.effectiveRole(current.data,kerberos,scope,audience);
   if (!kerberos || !policy.CAPABILITIES[minimum] || (policy.CAPABILITIES[role]||0)<policy.CAPABILITIES[minimum]) return {statusCode:403, headers:{...noStore,'Content-Type':'text/plain; charset=utf-8'}, body:'Your MIT account is not authorized for this page or operation. Signed-in login: '+(kerberos || '(not supplied in a supported format by MIT)')+'. Ask an MITSOEServices administrator to grant this login access.'};
   let visible;try{visible=features.effectiveFeatures((await loadFeatures()).data,Boolean(policy.effectiveRole(current.data,kerberos,'school','limited')));}catch{return {statusCode:503,headers:noStore,body:'Page visibility could not be verified. Please try again later.'};}
   const feature=features.featureFor(event);if(feature&&visible[feature]===false)return {statusCode:403,headers:noStore,body:'This resource is temporarily unavailable for your access level.'};

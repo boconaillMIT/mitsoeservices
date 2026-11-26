@@ -55,7 +55,11 @@ test('real encrypted sessions gate dashboard content for allowed users',async()=
     assert.equal(signedIn.headers['Cache-Control'],'private, no-store');
     policy.loadPolicy=async()=>({data:{grants:[{username:'someoneelse',scope:'school',role:'read'}],audit:[]},etag:'test'});
     const denied=await dashboard({httpMethod:'GET',headers:{cookie:'__Host-mit_sso_session='+token}});
-    assert.equal(denied.statusCode,403);
+    assert.equal(denied.statusCode,200);
+    assert(denied.body.includes('/donation-requests'));
+    assert(!denied.body.includes('href="/soe-hq"'));
+    assert(!denied.body.includes('href="/units/'));
+    assert(!denied.body.includes('href="/soe-hq/rct-review"'));
   } finally {
     policy.loadPolicy=oldLoad;featureFlags.loadFlags=oldFlags;
     for(const key of Object.keys(process.env)) if(!(key in previous)) delete process.env[key];

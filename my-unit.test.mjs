@@ -40,13 +40,13 @@ test('multiple-unit users see precisely their authorized unit links, including f
 });
 test('unsigned and unauthorized users cannot obtain any unit route',async()=>{
  const unsigned=await fixture([],null).handler(event);assert.equal(unsigned.statusCode,302);assert.equal(unsigned.headers.Location,'/.netlify/functions/auth-login?returnTo=%2Fmy-unit');
- assert.equal((await fixture([]).handler(event)).statusCode,403);
+ assert.equal((await fixture([]).handler(event)).headers.Location,'/donation-requests');
  const failed=createMyUnitHandler(async()=>({statusCode:503,body:'Policy unavailable.'}));assert.equal((await failed(event)).statusCode,503);
 });
 test('targets are recomputed from live grants and URL parameters cannot select another unit',async()=>{
  const {handler,data}=fixture([['be','read']]);assert.equal((await handler({...event,queryStringParameters:{unit:'nse',returnTo:'https://example.com'}})).headers.Location,'/units/be/full');
  data.grants=data.grants.filter(g=>g.username!=='testuser');data.grants.push({username:'testuser',scope:'nse',role:'limited_read'});assert.equal((await handler(event)).headers.Location,'/units/nse/limited');
- data.grants=data.grants.filter(g=>g.username!=='testuser');assert.equal((await handler(event)).statusCode,403);
+ data.grants=data.grants.filter(g=>g.username!=='testuser');assert.equal((await handler(event)).headers.Location,'/donation-requests');
 });
 test('DAF test view keeps the school admin restricted to SOE Fake',async()=>{
  const {handler}=fixture([],'oconaill');const r=await handler({...event,headers:{cookie:'__Host-soe_fake_daf_view=1'}});assert.equal(r.headers.Location,'/units/soe-fake/full');

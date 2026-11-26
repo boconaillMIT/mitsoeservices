@@ -6,7 +6,8 @@ import {hubLayout} from './unit-hub.mjs';
 
 export function createMyUnitHandler(authorize=access.authorize){return async event=>{
  if(event.httpMethod!=='GET')return {statusCode:405,headers:{...access.noStore,Allow:'GET'},body:'GET required.'};
- const result=await authorize(event,{scope:'any',audience:'limited'});
+ let result=await authorize(event,{scope:'any',audience:'limited'});
+ if(result.statusCode===403)result=await authorize(event,{scope:'dr-requester'});
  if(result.statusCode===401)return {statusCode:302,headers:{...access.noStore,Location:'/.netlify/functions/auth-login?returnTo=%2Fmy-unit'},body:''};
  if(!result.user)return result;
  try{
@@ -17,7 +18,7 @@ export function createMyUnitHandler(authorize=access.authorize){return async eve
   if(allowed.length===1){const scope=allowed[0],audience=policy.effectiveRole(result.policy.data,result.kerberos,scope,'full')?'full':'limited';return {statusCode:302,headers:{...access.noStore,Location:units.unitPath(scope,audience)},body:''};}
   if(!allowed.length&&result.navigation?.budget)return {statusCode:302,headers:{...access.noStore,Location:result.navigation?.rct?'/?home=1':'/soe-hq/budget'},body:''};
   if(!allowed.length&&result.navigation?.rct)return {statusCode:302,headers:{...access.noStore,Location:'/soe-hq/rct-review'},body:''};
-  if(!allowed.length)return {statusCode:403,headers:access.noStore,body:'No unit access is assigned to this login. Contact a site administrator.'};
+  if(!allowed.length)return {statusCode:302,headers:{...access.noStore,Location:'/donation-requests'},body:''};
   return {statusCode:200,headers:{...access.noStore,'Content-Type':'text/html; charset=utf-8'},body:hubLayout('Your units','<div class="unit-directory">'+unitCards(result)+'</div>',result.canManage,'',result.admin,result.schoolAccess,result.navigation)};
  }catch{return {statusCode:503,headers:access.noStore,body:'Your unit access could not be verified. Please try again later.'};}
 };}

@@ -7,19 +7,19 @@ const PROTECTED_ADMINS=Object.freeze(['oconaill']);
 const INITIAL_USERS=ADMINS;
 const {ALL_UNITS:UNITS}=require('./units.cjs');
 const {BUDGET_SCOPES}=require('./budget-scopes.cjs');
-const SCOPES=Object.freeze({school:'All School of Engineering',rct:'RCT reviews (separate access)',...Object.fromEntries(Object.entries(UNITS).map(([key,u])=>[key,u.name])),...BUDGET_SCOPES});
+const SCOPES=Object.freeze({school:'All School of Engineering',rct:'RCT reviews (separate access)',dr:'Donation Requests (separate access)',...Object.fromEntries(Object.entries(UNITS).map(([key,u])=>[key,u.name])),...BUDGET_SCOPES});
 const ROLES=Object.freeze({limited_read:1,limited_write:2,read:3,write:4,admin:5});
 const CAPABILITIES=Object.freeze({limited_read:1,limited_write:2,read:1,write:2,admin:3});
-function roleLabels(scope){if(Object.hasOwn(BUDGET_SCOPES,scope))return {read:'Budget viewer (read-only, selected department)'};if(scope==='rct')return {read:'Read',write:'Write',admin:'Manager'};const wide=scope==='school'?'school-wide':'unit-wide';return {limited_read:'Read-only (limited)',limited_write:'Write (limited)',read:'Read-only ('+wide+')',write:'Write ('+wide+')',admin:'Administrator ('+wide+')'};}
+function roleLabels(scope){if(Object.hasOwn(BUDGET_SCOPES,scope))return {read:'Budget viewer (read-only, selected department)'};if(['rct','dr'].includes(scope))return {read:'Read',write:'Write',admin:'Manager'};const wide=scope==='school'?'school-wide':'unit-wide';return {limited_read:'Read-only (limited)',limited_write:'Write (limited)',read:'Read-only ('+wide+')',write:'Write ('+wide+')',admin:'Administrator ('+wide+')'};}
 const KEY='access-policy';
 function normalizeLogin(v){if(typeof v!=='string')return null;const s=v.trim().toLowerCase().replace(/@mit\.edu$/,'');return /^[a-z][a-z0-9._-]{0,63}$/.test(s)?s:null;}
 function validUsername(v){return typeof v==='string'&&normalizeLogin(v)===v;}
 function initialPolicy(){return {schema:2,users:[...ADMINS],grants:ADMINS.map(username=>({username,scope:'school',role:'admin'})),audit:[]};}
 function effectiveRole(data,username,scope='school',audience='full'){
  if(!Array.isArray(data?.grants)||!Object.hasOwn(SCOPES,scope))return null;
- return data.grants.filter(g=>g.username===username&&(g.scope===scope||g.scope==='school'&&(scope!=='rct'||g.role==='admin'))&&(audience==='limited'||!g.role.startsWith('limited_'))).reduce((best,g)=>(CAPABILITIES[g.role]||0)>(CAPABILITIES[best]||0)||CAPABILITIES[g.role]===CAPABILITIES[best]&&(ROLES[g.role]||0)>(ROLES[best]||0)?g.role:best,null);
+ return data.grants.filter(g=>g.username===username&&(g.scope===scope||g.scope==='school'&&(!['rct','dr'].includes(scope)||g.role==='admin'))&&(audience==='limited'||!g.role.startsWith('limited_'))).reduce((best,g)=>(CAPABILITIES[g.role]||0)>(CAPABILITIES[best]||0)||CAPABILITIES[g.role]===CAPABILITIES[best]&&(ROLES[g.role]||0)>(ROLES[best]||0)?g.role:best,null);
 }
-function managedScopes(data,actor){return effectiveRole(data,actor,'school')==='admin'?Object.keys(SCOPES):['rct',...Object.keys(UNITS)].filter(scope=>effectiveRole(data,actor,scope)==='admin');}
+function managedScopes(data,actor){return effectiveRole(data,actor,'school')==='admin'?Object.keys(SCOPES):['rct','dr',...Object.keys(UNITS)].filter(scope=>effectiveRole(data,actor,scope)==='admin');}
 function validatePolicy(data){
  if(!data||data.schema!==2||!Array.isArray(data.grants)||!Array.isArray(data.audit)||data.grants.length>1500)throw Error('Invalid access policy');
  const seen=new Set();

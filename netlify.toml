@@ -1,6 +1,18 @@
 [build]
   publish = "public"
 
+[[redirects]]
+  from = "/donation-requests"
+  to = "/.netlify/functions/donation-requests"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/donation-requests/:action"
+  to = "/.netlify/functions/donation-requests?action=:action"
+  status = 200
+  force = true
+
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"

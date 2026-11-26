@@ -17,7 +17,7 @@ test('multiple-unit and school users keep Home; unapproved users cannot redirect
  for(const grants of [[['aeroastro','read'],['be','limited_read']],[['school','admin']],[['school','limited_read']]]){
   const result=await home(grants);assert.equal(result.statusCode,200);assert.equal(result.headers.Location,undefined);
  }
- assert.equal((await home([])).statusCode,403);
+ const requester=await home([]);assert.equal(requester.statusCode,200);assert(requester.body.includes('/donation-requests'));for(const path of ['href="/soe-hq"','href="/units/','href="/soe-hq/rct-review"'])assert(!requester.body.includes(path));
 });
 
 test('one to three units share a combined landing page across academic and other units; four retain directories',async()=>{
