@@ -57,6 +57,13 @@ validation and concurrency. Use fictional data only. The full site suite must pa
 before release. Browser checks cover intake, required attachment, submission,
 independent approvals, requester privacy and mobile layout.
 
+Install runtime dependencies physically in the checkout (`npm ci --omit=dev
+--ignore-scripts`); a junction to another checkout can cause deployment tracing to
+omit `fflate` and break RCT startup. Check the draft RCT, DR and budget-documents
+endpoints for a clean 401 or configuration-related 503 before publishing; 502 is
+a failed package/startup check. The local CLI may come from the established tooling
+checkout, but the application's runtime libraries must be available in this one.
+
 Follow the existing guarded Netlify release process: preserve current production
 public assets, add only `donation-requests.js`, `donation-requests.css`, `dr-model.mjs`
 and the new `donation-requests` function. Preserve all other functions. Never deploy
