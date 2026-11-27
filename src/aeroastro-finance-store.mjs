@@ -1,3 +1,4 @@
+import {validateAccountReference} from './aeroastro-account-reference.mjs';
 import {mergePersonnelDetails} from './aeroastro-personnel-details.mjs';
 import {randomUUID} from 'node:crypto';
 import {qbRequest,seal,unseal,encryptionKey} from './nimbus-store.mjs';
@@ -11,6 +12,7 @@ export function createFinanceRepository({query=qbRequest,table=process.env.NIMBU
  async function rows(where){check();const all=[];let expected;for(let skip=0;skip<5000;skip+=500){const r=await query('records/query',{from:table,select:[3,6,7,8],where,sortBy:[{fieldId:3,order:'ASC'}],options:{top:500,skip}});if(!Array.isArray(r.data)||!Number.isSafeInteger(r.metadata?.totalRecords)||expected!==undefined&&expected!==r.metadata.totalRecords)throw Error('Incomplete finance data');expected=r.metadata.totalRecords;all.push(...r.data);if(all.length===expected)return all;if(!r.data.length)break;}throw Error('Incomplete finance data');}
  function unpack(r){const id=r['6']?.value;if(r['7']?.value!==scope||typeof id!=='string'||!id.startsWith(PREFIX))throw Error('Finance scope mismatch');return unseal(r['8']?.value,key(),scope+':'+id);}
  return {
+  async accountReference(){const found=await rows(`{6.EX.'${PREFIX}account-reference:current'}AND{7.EX.'${scope}'}`);if(!found.length)return null;if(found.length!==1)throw Error('Ambiguous account reference');return validateAccountReference(unpack(found[0]));},
   async walletReference(){return walletAccountReference(await readWallet('aeroastro'));},
   async snapshot(kind){if(!['accounts','people'].includes(kind))throw Error('Invalid source');const found=await rows(`{6.EX.'${PREFIX+kind}:current'}AND{7.EX.'${scope}'}`);if(!found.length)return null;if(found.length!==1)throw Error('Ambiguous finance source');return validateFinanceSource(unpack(found[0]),kind,now());},
   async refreshAccounts(previous,candidate){
