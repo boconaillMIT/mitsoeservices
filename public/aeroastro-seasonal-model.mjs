@@ -32,7 +32,10 @@ export function seasonalForecast(row,asOf){
   if(parts.some(c=>c.remaining===null))return {...unavailable,reason:'A complete matching period is required.'};
   const fy=seasonalExposure(asOf).fiscalYear,extra=row.summerException?.fiscalYear===fy?row.summerException.amount:0;
   if(typeof extra!=='number'||!Number.isFinite(extra)||extra<0)throw Error('Invalid exception');
-  const remaining=Math.round((parts.reduce((s,c)=>s+c.remaining,0)+extra)*100)/100,current=row.currentBalance;
-  return {annual:null,remaining,projected:typeof current==='number'&&Number.isFinite(current)?Math.round((current-remaining)*100)/100:null,seasonal:true,parts,summerRemaining:extra};
+  const benefitRate=p.facultyBenefitsAdjusted?p.summerBenefitsRate:0;
+  if(typeof benefitRate!=='number'||!Number.isFinite(benefitRate)||benefitRate<0||benefitRate>1)throw Error('Invalid benefit rate');
+  const summerBenefitsRemaining=Math.round(extra*benefitRate*100)/100;
+  const remaining=Math.round((parts.reduce((s,c)=>s+c.remaining,0)+extra+summerBenefitsRemaining)*100)/100,current=row.currentBalance;
+  return {annual:null,remaining,projected:typeof current==='number'&&Number.isFinite(current)?Math.round((current-remaining)*100)/100:null,seasonal:true,parts,summerRemaining:extra,summerBenefitsRemaining,summerBenefitsRate:benefitRate};
  }catch{return {...unavailable,reason:'The expense breakdown could not be verified.'};}
 }

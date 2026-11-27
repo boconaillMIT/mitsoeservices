@@ -41,7 +41,7 @@ test('Refresh preview is read-only; confirmation binds actor, source version, fi
  }finally{if(before===undefined)delete process.env.APP_ORIGIN;else process.env.APP_ORIGIN=before;}
 });
 test('Refresh routes require finance write authorization and the upload controls are absent for readers and personnel pages',async()=>{
- assert.match(financeHtml('accounts',auth),/Update account data/);assert.doesNotMatch(financeHtml('accounts',{...auth,canWrite:false}),/finance-update-toggle/);assert.doesNotMatch(financeHtml('people',auth),/finance-update-toggle/);
+ assert.match(financeHtml('accounts',auth),/Import account report \(manual\)/);assert.doesNotMatch(financeHtml('accounts',{...auth,canWrite:false}),/finance-update-toggle/);assert.doesNotMatch(financeHtml('people',auth),/finance-update-toggle/);
  let touched=false;const h=createFinanceHandler({authorize:async(e,options)=>{assert.equal(options.scope,'finance:aeroastro');assert.equal(options.minimum,'write');return {statusCode:403};},repository:()=>{touched=true;}});
  assert.equal((await h({...event({}),path:'/units/aeroastro/finance/refresh'})).statusCode,403);assert.equal(touched,false);
 });
