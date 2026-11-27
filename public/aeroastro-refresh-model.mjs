@@ -1,10 +1,10 @@
 export const MAX_REPORT_BYTES=2*1024*1024;
 const clean=s=>String(s??'').replace(/^\uFEFF/,'').toLowerCase().replace(/[^a-z0-9]/g,'');
 export function decodeReportBytes(input){const bytes=new Uint8Array(input);if(bytes.length>MAX_REPORT_BYTES)throw Error('Choose a CSV report smaller than 2 MB.');const encoding=bytes[0]===255&&bytes[1]===254?'utf-16le':bytes[0]===254&&bytes[1]===255?'utf-16be':'utf-8';try{return new TextDecoder(encoding,{fatal:true}).decode(bytes);}catch{throw Error('The report encoding could not be read. Export it again from MIT Reports.');}}
-export function readReportCsv(text){
+export function readReportCsv(text,{headerTokens=['costcollectorid','unexpendedbalance']}={}){
  if(typeof text!=='string'||new TextEncoder().encode(text).length>MAX_REPORT_BYTES)throw Error('Choose a CSV report smaller than 2 MB.');
  if(text.includes('\0'))throw Error('The report encoding could not be read. Export it again from MIT Reports.');
- const heading=text.split(/\r?\n/).find(line=>clean(line).includes('costcollectorid')&&clean(line).includes('unexpendedbalance'))||'';
+ const heading=text.split(/\r?\n/).find(line=>headerTokens.every(token=>clean(line).includes(token)))||'';
  // Cognos CSV defaults to UTF-16LE with tabs and unquoted text. Also accept ordinary CSV exports.
  if(heading.includes('\t')){const rows=text.split(/\r\n|\r|\n/).filter(line=>line.trim()).map(line=>line.split('\t').map(s=>s.trim()));if(rows.length>6000||rows.some(row=>row.length>50||row.some(s=>s.length>20000)))throw Error('The report is larger than expected.');return rows;}
  const delimiter=heading.includes(';')&&!heading.includes(',')?';':',';

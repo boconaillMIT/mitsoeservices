@@ -1,0 +1,18 @@
+import {decodeReportBytes,MAX_REPORT_BYTES} from './aeroastro-refresh-model.mjs';import {preparePersonnelRefresh} from './aeroastro-personnel-refresh-model.mjs';
+export function setupPersonnelRefresh({getData,request,beforeOpen=async()=>{},reload=()=>location.reload()}){
+ const $=id=>document.getElementById('personnel-update-'+id);if(!$('toggle'))return;let pending=null,busy=false;
+ const invalidate=()=>{pending=null;for(const id of ['summary','details','missing-wrap','confirm'])$(id).hidden=true;$('summary').textContent='';$('changes').replaceChildren();$('missing').checked=false;$('status').textContent='';};
+ const clear=()=>{invalidate();$('form').reset();$('date').value=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});};
+ const controls=()=>{for(const id of ['toggle','file','date','preview','missing','close'])$(id).disabled=busy;$('confirm').disabled=busy||!pending||pending.missing&&!$('missing').checked;};
+ const close=()=>{if(busy)return;clear();$('panel').hidden=true;$('toggle').setAttribute('aria-expanded','false');$('toggle').focus();};
+ $('toggle').addEventListener('click',async()=>{if(busy)return;if(!$('panel').hidden){close();return;}await beforeOpen();clear();$('panel').hidden=false;$('toggle').setAttribute('aria-expanded','true');$('file').focus();});$('close').addEventListener('click',close);$('missing').addEventListener('change',controls);
+ for(const id of ['file','date'])$(id).addEventListener('change',()=>{invalidate();controls();});
+ $('form').addEventListener('submit',async e=>{e.preventDefault();if(busy)return;invalidate();busy=true;controls();try{
+  const file=$('file').files[0],asOf=$('date').value,data=getData();if(!file||!file.name.toLowerCase().endsWith('.csv')||file.size>MAX_REPORT_BYTES)throw Error('Choose an HR roster CSV smaller than 2 MB.');
+  const csv=decodeReportBytes(await file.arrayBuffer());preparePersonnelRefresh(csv,{unit:data?.unit,asOf:data?.source?.asOf,rows:data?.rows},asOf);
+  const p=await request('personnel-refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'preview',csv,asOf})}),s=p.summary;
+  pending={csv,asOf,issued:p.issued,confirmation:p.confirmation,missing:s.missing};$('summary').textContent=`Uploaded appointments: ${s.uploaded}. People: ${s.people}. New: ${s.added}. Changed or returned: ${s.changed}. Newly missing: ${s.missing}. Former appointment records retained: ${s.retainedFormer}.`;$('summary').hidden=false;
+  for(const change of p.changes){const li=document.createElement('li');li.textContent=`${change.type}: ${change.name} · ${change.position}${change.fields.length?' — '+change.fields.join(', '):''}`;$('changes').append(li);}$('details').hidden=!p.changes.length;$('missing-wrap').hidden=!s.missing;$('confirm').hidden=false;$('status').textContent='Preview only. No personnel data has been saved. Review the changes before confirming.';
+ }catch(e){$('status').textContent=e.message;}finally{busy=false;controls();}});
+ $('confirm').addEventListener('click',async()=>{if(busy||!pending||pending.missing&&!$('missing').checked)return;busy=true;controls();try{const {missing,...body}=pending;const r=await request('personnel-refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'commit',...body,acknowledgeMissing:$('missing').checked})});clear();$('status').textContent=`Roster updated by ${r.publishedBy}@mit.edu. Reloading the personnel view…`;reload();}catch(e){pending=null;$('confirm').hidden=true;$('status').textContent=e.message;}finally{busy=false;controls();}});clear();controls();
+}

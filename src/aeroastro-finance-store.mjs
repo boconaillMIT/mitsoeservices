@@ -28,9 +28,25 @@ export function createFinanceRepository({query=qbRequest,table=process.env.NIMBU
    try{await call(table,'API_EditRecord',`<rid>${rid}</rid><update_id>${xml(updateId)}</update_id><field fid="8">${xml(seal(candidate,key(),scope+':'+id))}</field>`);}catch(e){if(e.qbCode)return {conflict:true};throw e;}
    const saved=await rows(where);if(saved.length!==1||JSON.stringify(unpack(saved[0]))!==JSON.stringify(candidate))throw Error('Refresh readback failed');return {saved:true};
   },
-  async peopleDetails(source){if(!source)return source;const found=await rows(`{6.EX.'${PREFIX}people-details:current'}AND{7.EX.'${scope}'}`);if(!found.length)return source;if(found.length!==1)throw Error('Ambiguous personnel details');return validateFinanceSource(mergePersonnelDetails(source,unpack(found[0])),'people',now());},
+  async refreshPeople(previous,candidate){
+   validateFinanceSource(candidate,'people',now());if(candidate.rosterFormat!=='complete-v2'||validatePersonKeys(candidate,candidate.personIdentities).size!==candidate.rows.length)throw Error('Complete roster and identities required');
+   if(!UUID.test(candidate.importId||'')||!candidate.publishedBy||!candidate.sourceHash)throw Error('Refresh audit metadata required');
+   const id=PREFIX+'people:current',where=`{6.EX.'${id}'}AND{7.EX.'${scope}'}`;
+   const first=await rows(where);if(first.length!==1||JSON.stringify(unpack(first[0]))!==JSON.stringify(previous))return {conflict:true};
+   const rid=first[0]['3']?.value;if(!Number.isSafeInteger(rid)||rid<1)throw Error('Invalid source record');
+   const call=native||createQbTransport().native;
+   const info=await call(table,'API_GetRecordInfo',`<rid>${rid}</rid>`),updateId=/<update_id>\s*([^<\s]+)\s*<\/update_id>/i.exec(info)?.[1];
+   if(!updateId)throw Error('Source version unavailable');
+   const latest=await rows(where);if(latest.length!==1||latest[0]['8'].value!==first[0]['8'].value)return {conflict:true};
+   const archive=PREFIX+'people:refresh:'+candidate.importId;
+   await call(table,'API_AddRecord',`<field fid="6">${xml(archive)}</field><field fid="7">${scope}</field><field fid="8">${xml(seal(candidate,key(),scope+':'+archive))}</field>`);
+   try{await call(table,'API_EditRecord',`<rid>${rid}</rid><update_id>${xml(updateId)}</update_id><field fid="8">${xml(seal(candidate,key(),scope+':'+id))}</field>`);}catch(e){if(e.qbCode)return {conflict:true};throw e;}
+   const saved=await rows(where);if(saved.length!==1||JSON.stringify(unpack(saved[0]))!==JSON.stringify(candidate))throw Error('Refresh readback failed');return {saved:true};
+  },
+  async peopleDetails(source){if(!source)return source;if(source.rosterFormat==='complete-v2')return validateFinanceSource(source,'people',now());const found=await rows(`{6.EX.'${PREFIX}people-details:current'}AND{7.EX.'${scope}'}`);if(!found.length)return source;if(found.length!==1)throw Error('Ambiguous personnel details');return validateFinanceSource(mergePersonnelDetails(source,unpack(found[0])),'people',now());},
   async personKeys(source){
    if(source?.kind!=='people'||source.unit!==scope||!/^[a-f0-9]{64}$/.test(source.sourceHash||''))return new Map();
+   if(source.rosterFormat==='complete-v2')return validatePersonKeys(source,source.personIdentities);
    const found=await rows(`{6.EX.'${PREFIX}person-identities:current'}AND{7.EX.'${scope}'}`);if(!found.length)return new Map();if(found.length!==1)throw Error('Ambiguous people identities');const value=unpack(found[0]);
    if(value.schema!==1||value.unit!==scope||value.sourceHash!==source.sourceHash||!Array.isArray(value.rows)||value.rows.length!==source.rows.length)return new Map();
    const allowed=new Set(source.rows.map(r=>r.id)),keys=new Map();for(const r of value.rows){if(!allowed.has(r.appointmentId)||keys.has(r.appointmentId)||!/^[a-f0-9]{64}$/.test(r.personKey||''))throw Error('People identity mismatch');keys.set(r.appointmentId,r.personKey);}return keys;
@@ -47,4 +63,9 @@ export function createFinanceRepository({query=qbRequest,table=process.env.NIMBU
    const saved=await rows(`{6.EX.'${recordKey}'}AND{7.EX.'${scope}'}`);if(saved.length!==1||JSON.stringify(unpack(saved[0]))!==JSON.stringify(note))throw Error('Note readback failed');return {status:200,note};
   }
  };
+}
+
+export function validatePersonKeys(source,value){
+ if(!value||value.schema!==1||value.unit!=='aeroastro'||value.sourceHash!==source.sourceHash||!Array.isArray(value.rows)||value.rows.length!==source.rows.length)throw Error('Roster identity map mismatch');
+ const allowed=new Map(source.rows.map(r=>[r.id,r.employeeId])),keys=new Map(),people=new Map();for(const r of value.rows){if(!allowed.has(r.appointmentId)||keys.has(r.appointmentId)||!/^[a-f0-9]{64}$/.test(r.personKey||''))throw Error('Roster identity mismatch');const person=allowed.get(r.appointmentId);if(people.has(person)&&people.get(person)!==r.personKey)throw Error('Conflicting person identities');people.set(person,r.personKey);keys.set(r.appointmentId,r.personKey);}return keys;
 }
