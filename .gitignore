@@ -18,3 +18,7 @@ node_modules/
 *.zip
 *.jpg
 *.png
+
+# Local Python runtime caches
+__pycache__/
+*.pyc

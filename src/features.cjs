@@ -10,7 +10,7 @@ async function loadFlags(store){store||=await featureStore();const entry=await s
 function effectiveFeatures(data,school){return Object.fromEntries(Object.keys(DEFINITIONS).map(k=>[k,(data?.features?.[k]||defaults().features[k])[school?'school':'units']]));}
 function featureFor(event){
  const p=event.path||'',q=event.queryStringParameters||{},page=q.page||p;
- if(/\/aeroastro-finance$/.test(p)||/^\/units\/aeroastro\/finance(?:\/|$)/.test(p))return 'aeroastro-finance';
+ if(/\/aeroastro-(?:finance|warehouse)$/.test(p)||/^\/units\/aeroastro\/finance(?:\/|$)/.test(p))return 'aeroastro-finance';
  if(/(?:^|\/)(?:account-review|account-review-page)$/.test(p)||/\/account-review(?:\/\d+)?\/?$/.test(p))return 'account-review';
  if(/(?:^|\/)(?:unit-commitments|unit-commitments-page)$/.test(p)||/\/commitments(?:\/closed)?\/?$/.test(p))return 'commitments';
  if(/(?:^|\/)(?:unit-data|wallet-categories)$/.test(p)||/\/wallet\/?$/.test(p)||/\/wallets\//.test(p)||p==='/soe-wallet'||/\/unit-page$/.test(p)&&(q.section==='wallet'||q.unit==='school'&&!q.section))return 'wallets';

@@ -31,6 +31,9 @@
   external_node_modules = ["jose", "@netlify/blobs"]
   included_files = ["src/account-inventory-query.sql", "src/login.html", "src/dashboard.html", "src/admin.html", "src/report.html", "src/published-report.html"]
 
+[functions.aeroastro-warehouse]
+  included_files = ["tools/aeroastro_warehouse.py"]
+
 [[headers]]
   for = "/*"
   [headers.values]
