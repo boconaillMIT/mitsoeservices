@@ -1,4 +1,5 @@
 import {validateAccountReference} from './aeroastro-account-reference.mjs';
+import {validateExpenseProfiles} from './aeroastro-expense-profile.mjs';
 import {mergePersonnelDetails} from './aeroastro-personnel-details.mjs';
 import {randomUUID} from 'node:crypto';
 import {qbRequest,seal,unseal,encryptionKey} from './nimbus-store.mjs';
@@ -12,6 +13,7 @@ export function createFinanceRepository({query=qbRequest,table=process.env.NIMBU
  async function rows(where){check();const all=[];let expected;for(let skip=0;skip<5000;skip+=500){const r=await query('records/query',{from:table,select:[3,6,7,8],where,sortBy:[{fieldId:3,order:'ASC'}],options:{top:500,skip}});if(!Array.isArray(r.data)||!Number.isSafeInteger(r.metadata?.totalRecords)||expected!==undefined&&expected!==r.metadata.totalRecords)throw Error('Incomplete finance data');expected=r.metadata.totalRecords;all.push(...r.data);if(all.length===expected)return all;if(!r.data.length)break;}throw Error('Incomplete finance data');}
  function unpack(r){const id=r['6']?.value;if(r['7']?.value!==scope||typeof id!=='string'||!id.startsWith(PREFIX))throw Error('Finance scope mismatch');return unseal(r['8']?.value,key(),scope+':'+id);}
  return {
+  async expenseProfiles(){const found=await rows(`{6.EX.'${PREFIX}expense-profiles:current'}AND{7.EX.'${scope}'}`);if(!found.length)return null;if(found.length!==1)throw Error('Ambiguous expense breakdown');return validateExpenseProfiles(unpack(found[0]));},
   async accountReference(){const found=await rows(`{6.EX.'${PREFIX}account-reference:current'}AND{7.EX.'${scope}'}`);if(!found.length)return null;if(found.length!==1)throw Error('Ambiguous account reference');return validateAccountReference(unpack(found[0]));},
   async walletReference(){return walletAccountReference(await readWallet('aeroastro'));},
   async snapshot(kind){if(!['accounts','people'].includes(kind))throw Error('Invalid source');const found=await rows(`{6.EX.'${PREFIX+kind}:current'}AND{7.EX.'${scope}'}`);if(!found.length)return null;if(found.length!==1)throw Error('Ambiguous finance source');return validateFinanceSource(unpack(found[0]),kind,now());},
@@ -53,10 +55,10 @@ export function createFinanceRepository({query=qbRequest,table=process.env.NIMBU
    if(value.schema!==1||value.unit!==scope||value.sourceHash!==source.sourceHash||!Array.isArray(value.rows)||value.rows.length!==source.rows.length)return new Map();
    const allowed=new Set(source.rows.map(r=>r.id)),keys=new Map();for(const r of value.rows){if(!allowed.has(r.appointmentId)||keys.has(r.appointmentId)||!/^[a-f0-9]{64}$/.test(r.personKey||''))throw Error('People identity mismatch');keys.set(r.appointmentId,r.personKey);}return keys;
   },
-  async notes(){const found=await rows(`{7.EX.'${scope}'}AND{6.CT.'${PREFIX}note:'}`);return found.map(unpack).map(n=>{if(n.unit!==scope||!/^\d{7}$/.test(n.account||'')||!UUID.test(n.id||'')||typeof n.text!=='string'||typeof n.by!=='string'||!Number.isFinite(Date.parse(n.at)))throw Error('Invalid finance note');return n;}).sort((a,b)=>a.at.localeCompare(b.at));},
+  async notes(){const found=await rows(`{7.EX.'${scope}'}AND{6.CT.'${PREFIX}note:'}`);return found.map(unpack).map(n=>{if(n.unit!==scope||!/^\d{7}$/.test(n.account||'')||!UUID.test(n.id||'')||typeof n.text!=='string'||typeof n.by!=='string'||!Number.isFinite(Date.parse(n.at)))throw Error('Invalid finance note');if(n.summerException){const x=n.summerException;if(Object.keys(x).some(k=>!['fiscalYear','amount'].includes(k))||!Number.isInteger(x.fiscalYear)||x.fiscalYear<2000||x.fiscalYear>2200||typeof x.amount!=='number'||!Number.isFinite(x.amount)||x.amount<0||x.amount>1e9)throw Error('Invalid summer exception');}return n;}).sort((a,b)=>a.at.localeCompare(b.at));},
   async append(account,actor,body){check();const id=body.operationId||uuid();if(!UUID.test(id))throw Error('Invalid note ID');const recordKey=PREFIX+'note:'+id;const previous=await rows(`{6.EX.'${recordKey}'}AND{7.EX.'${scope}'}`);
-   if(previous.length){const note=unpack(previous[0]);return note.account===account&&note.by===actor&&note.text===body.text&&note.source===(body.source||'')?{status:200,note}:{status:409,error:'This note ID was already used.'};}
-   const note={schema:1,unit:scope,id,account,text:body.text,source:body.source||'',by:actor,at:now().toISOString()};
+   if(previous.length){const note=unpack(previous[0]);return note.account===account&&note.by===actor&&note.text===body.text&&note.source===(body.source||'')&&JSON.stringify(note.summerException)===JSON.stringify(body.summerException)?{status:200,note}:{status:409,error:'This note ID was already used.'};}
+   const note={schema:1,unit:scope,id,account,text:body.text,source:body.source||'',by:actor,at:now().toISOString(),...(body.summerException?{summerException:body.summerException}:{})};
    const cipher=seal(note,key(),scope+':'+recordKey);
    // Each note is a new record. API_AddRecord fails on a duplicate unique key,
    // so simultaneous submissions cannot replace an existing note.

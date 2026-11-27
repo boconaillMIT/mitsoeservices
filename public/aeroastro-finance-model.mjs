@@ -1,6 +1,8 @@
+import {seasonalForecast} from './aeroastro-seasonal-model.mjs';
 export const moneyNumber=v=>v===null||v===undefined||v===''||!Number.isFinite(Number(v))?null:Number(v);
 const DAY=86400000;
 export function forecast(row,asOf,method='run-rate'){
+ if(method==='seasonal')return seasonalForecast(row,asOf);
  if(row.status==='Closed')return {remaining:null,projected:null,annual:null};
  const d=/^\d{4}-\d{2}-\d{2}$/.test(asOf||'')?new Date(asOf+'T00:00:00Z'):new Date(NaN);
  if(!Number.isFinite(+d)||d.toISOString().slice(0,10)!==asOf)return {remaining:null,projected:null,annual:null};
