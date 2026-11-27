@@ -5,7 +5,7 @@ const testView = require('./test-view.cjs');
 const features = require('./features.cjs');
 const {budgetViewerUnits}=require('./budget-scopes.cjs');
 const auth = createAuth();
-const noStore = {'Cache-Control':'private, no-store', 'Vary':'Cookie'};
+const noStore = {...require('./security-headers.cjs').SECURITY_HEADERS,'Cache-Control':'private, no-store', 'Vary':'Cookie'};
 async function authorize(event, {reader = auth.readSession, load = policy.loadPolicy, loadFeatures=features.loadFlags, scope='school', minimum='read',audience='full'} = {}) {
   let user;
   try { user = await reader(event); }

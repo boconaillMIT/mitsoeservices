@@ -3,15 +3,31 @@ import {randomUUID} from 'node:crypto';
 import {qbRequest,seal,unseal,encryptionKey} from './nimbus-store.mjs';
 import {validateFinanceSource} from './aeroastro-finance-source.mjs';
 import {readUnit} from './unit-data.mjs';import {walletAccountReference} from './aeroastro-wallet-reference.mjs';
+import {createQbTransport} from './budget-hq-qb.mjs';
 const scope='aeroastro',PREFIX='aeroastro-finance:',UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const xml=s=>String(s).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
-export function createFinanceRepository({query=qbRequest,table=process.env.NIMBUS_SNAPSHOTS_TABLE,key=encryptionKey,now=()=>new Date(),uuid=randomUUID,add,readWallet=readUnit}={}){
+export function createFinanceRepository({query=qbRequest,table=process.env.NIMBUS_SNAPSHOTS_TABLE,key=encryptionKey,now=()=>new Date(),uuid=randomUUID,add,native,readWallet=readUnit}={}){
  const check=()=>{if(!/^b[a-z0-9]+$/.test(table||''))throw Error('Finance storage unavailable');};
  async function rows(where){check();const all=[];let expected;for(let skip=0;skip<5000;skip+=500){const r=await query('records/query',{from:table,select:[3,6,7,8],where,sortBy:[{fieldId:3,order:'ASC'}],options:{top:500,skip}});if(!Array.isArray(r.data)||!Number.isSafeInteger(r.metadata?.totalRecords)||expected!==undefined&&expected!==r.metadata.totalRecords)throw Error('Incomplete finance data');expected=r.metadata.totalRecords;all.push(...r.data);if(all.length===expected)return all;if(!r.data.length)break;}throw Error('Incomplete finance data');}
  function unpack(r){const id=r['6']?.value;if(r['7']?.value!==scope||typeof id!=='string'||!id.startsWith(PREFIX))throw Error('Finance scope mismatch');return unseal(r['8']?.value,key(),scope+':'+id);}
  return {
   async walletReference(){return walletAccountReference(await readWallet('aeroastro'));},
   async snapshot(kind){if(!['accounts','people'].includes(kind))throw Error('Invalid source');const found=await rows(`{6.EX.'${PREFIX+kind}:current'}AND{7.EX.'${scope}'}`);if(!found.length)return null;if(found.length!==1)throw Error('Ambiguous finance source');return validateFinanceSource(unpack(found[0]),kind,now());},
+  async refreshAccounts(previous,candidate){
+   validateFinanceSource(candidate,'accounts',now());
+   if(!UUID.test(candidate.importId||'')||!candidate.publishedBy||!candidate.sourceHash)throw Error('Refresh audit metadata required');
+   const id=PREFIX+'accounts:current',where=`{6.EX.'${id}'}AND{7.EX.'${scope}'}`;
+   const first=await rows(where);if(first.length!==1||JSON.stringify(unpack(first[0]))!==JSON.stringify(previous))return {conflict:true};
+   const rid=first[0]['3']?.value;if(!Number.isSafeInteger(rid)||rid<1)throw Error('Invalid source record');
+   const call=native||createQbTransport().native;
+   const info=await call(table,'API_GetRecordInfo',`<rid>${rid}</rid>`),updateId=/<update_id>\s*([^<\s]+)\s*<\/update_id>/i.exec(info)?.[1];
+   if(!updateId)throw Error('Source version unavailable');
+   const latest=await rows(where);if(latest.length!==1||latest[0]['8'].value!==first[0]['8'].value)return {conflict:true};
+   const archive=PREFIX+'accounts:refresh:'+candidate.importId;
+   await call(table,'API_AddRecord',`<field fid="6">${xml(archive)}</field><field fid="7">${scope}</field><field fid="8">${xml(seal(candidate,key(),scope+':'+archive))}</field>`);
+   try{await call(table,'API_EditRecord',`<rid>${rid}</rid><update_id>${xml(updateId)}</update_id><field fid="8">${xml(seal(candidate,key(),scope+':'+id))}</field>`);}catch(e){if(e.qbCode)return {conflict:true};throw e;}
+   const saved=await rows(where);if(saved.length!==1||JSON.stringify(unpack(saved[0]))!==JSON.stringify(candidate))throw Error('Refresh readback failed');return {saved:true};
+  },
   async peopleDetails(source){if(!source)return source;const found=await rows(`{6.EX.'${PREFIX}people-details:current'}AND{7.EX.'${scope}'}`);if(!found.length)return source;if(found.length!==1)throw Error('Ambiguous personnel details');return validateFinanceSource(mergePersonnelDetails(source,unpack(found[0])),'people',now());},
   async personKeys(source){
    if(source?.kind!=='people'||source.unit!==scope||!/^[a-f0-9]{64}$/.test(source.sourceHash||''))return new Map();

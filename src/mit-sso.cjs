@@ -1,10 +1,11 @@
 const { randomBytes, createHash } = require('node:crypto');
+const {SECURITY_HEADERS}=require('./security-headers.cjs');
 
 const BASE = '/.netlify/functions/';
 const random = () => randomBytes(32).toString('base64url');
 const json = (statusCode, data) => ({
   statusCode,
-  headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
+  headers: { ...SECURITY_HEADERS,'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
   body: JSON.stringify(data)
 });
 
