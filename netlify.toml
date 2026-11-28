@@ -2,6 +2,18 @@
   publish = "public"
 
 [[redirects]]
+  from = "/my-settings"
+  to = "/.netlify/functions/my-settings"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/my-settings/data"
+  to = "/.netlify/functions/my-settings?action=data"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/units/aeroastro/finance"
   to = "/.netlify/functions/aeroastro-finance"
   status = 200

@@ -11,3 +11,11 @@ body[data-finance-view] main{min-width:0;flex:1}#finance-update-panel{min-width:
 #finance-record-confirm[hidden]{display:none!important}.finance-record-confirm{padding:1rem;border-left:4px solid #750014;background:#fff4f5;margin:1rem 0}#finance-former-section .wallet-table{overflow-x:auto}#finance-former-section table{min-width:1150px;width:100%}#finance-former-section summary{cursor:pointer;font-weight:600;padding:1rem 0}
 
 .account-background{min-width:13rem;max-width:36rem;margin-top:.6rem}.account-background summary{cursor:pointer;font-weight:600}.account-background article{border-top:1px solid #d3d9dd;margin-top:1rem;padding-top:.5rem}.account-background p{white-space:pre-wrap;overflow-wrap:anywhere}.account-background dl{display:grid;gap:.5rem}.account-background dl>div{display:grid;grid-template-columns:minmax(6rem,1fr) minmax(7rem,2fr);gap:.6rem}.account-background dt{font-weight:600}.account-background dd{margin:0}.report-group{margin-top:1.5rem}.report-group .wallet-table{overflow-x:auto}.report-group table{min-width:1300px;width:100%}.report-group td,.report-group th{padding:.85rem;text-align:left;vertical-align:top}.report-group small,#finance-former-section small{display:block}.report-group tfoot{font-weight:600;background:#f3f5f7}#report-filters{display:flex;flex-wrap:wrap;gap:1rem;margin:1.5rem 0}#report-filters label{display:grid;gap:.4rem}#report-filters input,#report-filters select{padding:.6rem;max-width:25rem}#report-content[hidden]{display:none!important}
+
+body[data-account-view="simple"] [data-finance-advanced]{display:none!important}
+
+[hidden]{display:none!important}
+
+[data-report-sort]{font:inherit;background:none;border:0;padding:0;margin:0;text-align:inherit;color:inherit;text-decoration:underline;cursor:pointer}
+body[data-account-view="simple"] .report-group table{table-layout:fixed;width:100%}body[data-account-view="simple"] .report-group th:first-child{width:16%}body[data-account-view="simple"] .report-group th:nth-child(2){width:40%}body[data-account-view="simple"] .report-group th:nth-child(3),body[data-account-view="simple"] .report-group th:nth-child(4){width:22%}body[data-account-view="simple"] .report-group td{overflow-wrap:anywhere;vertical-align:top}
+body[data-account-view="simple"][data-finance-view="dhc"] .report-group>.finance-totals{display:none}
